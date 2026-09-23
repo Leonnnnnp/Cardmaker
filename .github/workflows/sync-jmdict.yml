@@ -95,7 +95,8 @@ jobs:
           print("Built",out,os.path.getsize(out),"bytes",kept,"entries",len(idx),"keys")
           PY
 
-          rm -f docs/resources/jmdict-ger.json.gz
+          cp /tmp/jmdict/jmdict-ger.json docs/resources/jmdict-ger.json
+          gzip -9 -f docs/resources/jmdict-ger.json
 
       - name: Commit updated dictionary
         shell: bash
@@ -107,6 +108,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Dictionary unchanged."
           else
-            git commit -m "Update prebuilt German JMdict index"
-            git push
+            git commit -m "Update bundled German JMdict resources"
+            git pull --rebase origin main
+            git push origin main
           fi
