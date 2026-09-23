@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Kotodama SRS – Prototyp v6</title>
+<style>
+:root{
+ --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
+ --paperInk:#2a2116;--amber:#ffb454;--teal:#5ad1c8;--green:#67d27b;--red:#e45d63;
+ --frame:#0b0812;--muted:#a79bbd;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 50% -10%,#3a2a5c,transparent 45%),linear-gradient(#171126,#241a3d 55%,#171126);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+#app{max-width:720px;margin:auto;padding:14px 14px 90px}
+.header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
+.brand{font-weight:900;letter-spacing:.08em;color:var(--amber)}
+.sub{font-size:12px;color:var(--teal)}
+.panel{background:var(--panel);border:3px solid var(--frame);box-shadow:inset 0 0 0 2px #b48b4e;border-radius:6px;padding:14px;margin-bottom:12px}
+.paper{background:var(--paper);color:var(--paperInk);border:3px solid var(--frame);box-shadow:inset 0 0 0 2px #b99a5b;border-radius:6px;padding:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:2px solid var(--frame);background:#41335f;color:var(--ink);padding:10px 13px;border-radius:5px;box-shadow:0 3px 0 var(--frame)}
+.btn:active{transform:translateY(2px);box-shadow:none}
+.btn.primary{background:linear-gradient(#ffc26a,#d58d2f);color:#2a1905;font-weight:800}
+.btn.good{background:#347a48}.btn.again{background:#81323a}.btn.easy{background:#2d6f73}.btn.hard{background:#6b5630}
+.btn.ghost{background:#2a223c}
+.btn.small{padding:7px 9px;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--panel2);border:1px solid #5e5078;border-radius:6px;padding:10px;text-align:center}
+.stat strong{display:block;font-size:22px;color:var(--amber)}
+label{display:block;font-size:12px;font-weight:800;margin:10px 0 5px;color:#6d5734}
+input,textarea{width:100%;border:2px solid #4a3822;border-radius:5px;padding:10px;background:#fffdf7;color:#241a10}
+textarea{resize:vertical;min-height:72px;white-space:pre-wrap}
+.wordlist{display:flex;flex-direction:column;gap:8px;max-height:390px;overflow:auto}
+.cardrow{display:grid;grid-template-columns:1fr auto;gap:10px;background:#241c39;border:1px solid #51456b;padding:10px;border-radius:6px}
+.cardrow .front{white-space:pre-wrap;font-size:18px}
+.cardrow .meta{font-size:12px;color:var(--muted);margin-top:4px}
+.hidden{display:none!important}
+.screen{display:none}.screen.active{display:block}
+.fab{position:fixed;right:18px;bottom:18px;border-radius:999px;width:58px;height:58px;font-size:30px;background:var(--amber);color:#2a1905;border:3px solid var(--frame);box-shadow:0 5px 0 var(--frame);z-index:10}
+.modal{position:fixed;inset:0;background:#080610d9;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal.show{display:flex}.modal-card{max-width:560px;width:100%;max-height:92vh;overflow:auto}
+.preview{margin-top:12px;background:#fbf2df;padding:12px;border:1px dashed #9a8050;border-radius:6px}
+.preview .jp{font-size:25px;white-space:pre-wrap}.preview ruby rt{font-size:12px;color:#6f5835}
+.note{font-size:12px;color:var(--muted)}
+.battle{position:relative;overflow:hidden;min-height:230px;background:radial-gradient(circle at 50% 20%,#4b3968,transparent 55%),linear-gradient(#2a2048,#110d20);border:3px solid var(--frame);border-radius:6px;padding:10px}
+.arena{display:flex;justify-content:space-between;align-items:flex-end;min-height:160px}
+canvas{image-rendering:pixelated}
+.spriteWrap{position:relative}
+#hero{width:138px;height:121px}#enemy{width:120px;height:120px}
+.hp{display:grid;grid-template-columns:70px 1fr 58px;gap:7px;align-items:center;font-size:12px;margin:6px 0}
+.hpbar{height:13px;background:#0b0812;border:2px solid #000}.fill{height:100%;background:var(--green);transition:width .25s}.fill.enemy{background:var(--red)}
+.reviewcard{text-align:center;min-height:210px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.reviewfront{font-size:30px;white-space:pre-wrap}.reviewback{font-size:24px;white-space:pre-wrap}
+.example{font-size:16px;white-space:pre-wrap;border-top:1px dashed #ad9970;padding-top:10px}
+.rating{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.hit{animation:hit .3s}@keyframes hit{30%{transform:translateX(-7px);filter:brightness(2)}60%{transform:translateX(6px)}}
+.shake{animation:shake .35s}@keyframes shake{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.topnav{display:flex;gap:6px;margin-bottom:10px}.topnav button{flex:1}
+.search{margin-bottom:8px}
+.badge{display:inline-block;border:1px solid #76678f;border-radius:999px;padding:2px 7px;font-size:11px;color:#cfc6dd}
+
+.dict-panel{border:1px solid #5e5078;border-radius:6px;padding:10px;margin-top:10px;background:#211934}
+.dict-status{font-size:12px;color:var(--muted);line-height:1.4}
+.lookup-results{margin-top:8px;display:flex;flex-direction:column;gap:7px}
+.lookup-item{border:1px solid #baa06e;background:#fff7e8;border-radius:5px;padding:9px}
+.lookup-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lookup-word{font-size:21px;font-weight:800}
+.lookup-reading{font-size:14px;color:#725d38}
+.lookup-gloss{font-size:14px;margin-top:5px;white-space:pre-wrap}
+.lookup-pos{font-size:11px;color:#806e51;margin-top:4px}
+.progressline{height:7px;background:#0b0812;border-radius:4px;overflow:hidden;margin-top:7px}
+.progressfill{height:100%;background:var(--teal);width:0%;transition:width .2s}
+
+
+/* v5 additions */
+.quick-grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
+.status-chip{display:inline-block;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid #6e6286;margin-right:4px}
+.status-new{background:#35405c}.status-learning{background:#705d2a}.status-mature{background:#2f6c46}.status-relearn{background:#71383f}
+.filterbar{display:grid;grid-template-columns:1fr auto auto;gap:7px;margin-bottom:8px}
+select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7;color:#241a10}
+.history{margin-top:8px;font-size:12px;color:#6e5c3c}
+.history-row{padding:4px 0;border-bottom:1px dashed #c3ad83}
+.dup-warning{margin-top:8px;padding:9px;background:#fff0d0;border:1px solid #d29c44;border-radius:5px;color:#6b4810}
+.dup-warning button{margin-top:6px}
+.lookup-item.compact .lookup-gloss{max-height:56px;overflow:auto}
+.lookup-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.review-meta{font-size:12px;color:#7c6948;margin-top:4px}
+.review-progress{font-size:12px;color:var(--teal);text-align:center;margin:6px 0}
+.section-title{font-weight:800;color:var(--amber);margin-bottom:6px}
+.inline-note{font-size:11px;color:#8b7f9d}
+@media(max-width:560px){.filterbar{grid-template-columns:1fr 1fr}.filterbar input{grid-column:1/-1}.quick-grid{grid-template-columns:1fr}}
+
+
+/* v6 additions */
+.train-panel{margin-top:12px}
+.train-checks{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.train-check{display:flex;align-items:center;gap:5px;background:#211934;border:1px solid #5e5078;border-radius:999px;padding:6px 9px;font-size:12px}
+.train-check input{width:auto;margin:0}
+.selection-tools{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.cardrow{grid-template-columns:auto 1fr auto}
+.card-select{width:auto;margin-top:5px}
+.item-combat-bar{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+.item-combat{position:relative}
+.item-combat .count{position:absolute;right:-5px;top:-6px;background:var(--amber);color:#2a1905;border-radius:999px;min-width:19px;height:19px;padding:2px 5px;font-size:10px;font-weight:800}
+.wave-info{text-align:center;font-size:12px;color:var(--amber);margin:3px 0}
+.combat-log{text-align:center;font-size:12px;color:var(--teal);min-height:18px;margin:4px 0}
+.combo{font-size:12px;color:var(--amber);text-align:center;min-height:17px}
+
+@media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div id="app">
+ <div class="header">
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6</div></div>
+   <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
+ </div>
+
+ <div class="topnav">
+   <button class="btn small primary" data-screen="home">Heute</button>
+   <button class="btn small" data-screen="cards">Karten</button>
+ </div>
+
+ <section id="home" class="screen active">
+   <div class="stats">
+     <div class="stat"><strong id="dueCount">0</strong>fällig</div>
+     <div class="stat"><strong id="newCount">0</strong>neu</div>
+     <div class="stat"><strong id="totalCount">0</strong>gesamt</div>
+   </div>
+   <div class="stats" style="margin-top:8px">
+     <div class="stat"><strong id="learningCount">0</strong>lernend</div>
+     <div class="stat"><strong id="matureCount">0</strong>reif</div>
+     <div class="stat"><strong id="relearnCount">0</strong>wiederlernen</div>
+   </div>
+   <div class="panel" style="margin-top:12px">
+     <div style="font-weight:800;color:var(--amber);margin-bottom:6px">Heutige Expedition</div>
+     <div class="note" id="homeText">Füge zuerst eine Karte hinzu.</div>
+     <div class="row" style="margin-top:12px">
+       <button class="btn primary" id="startReview">Review starten</button>
+     </div>
+   </div>
+
+
+   <div class="panel train-panel">
+     <div class="section-title">⚔️ Freies Training</div>
+     <div class="note">Jederzeit üben – unabhängig von der SRS-Fälligkeit. Freies Training verändert deine nächsten Fälligkeitstermine nicht.</div>
+     <div class="train-checks">
+       <label class="train-check"><input type="checkbox" class="train-status" value="new" checked> Neu</label>
+       <label class="train-check"><input type="checkbox" class="train-status" value="learning" checked> Lernend</label>
+       <label class="train-check"><input type="checkbox" class="train-status" value="relearning" checked> Wiederlernen</label>
+       <label class="train-check"><input type="checkbox" class="train-status" value="mature"> Reif</label>
+     </div>
+     <div class="row">
+       <button class="btn primary" id="startCustomTraining">Auswahl trainieren</button>
+       <button class="btn" id="trainAllBtn">Alle Karten trainieren</button>
+       <button class="btn ghost" id="trainUnsafeBtn">Nur unsichere</button>
+     </div>
+   </div>
+
+   <div class="panel">
+     <div style="font-weight:800;color:var(--teal);margin-bottom:6px">📚 Offline-Wörterbuch</div>
+     <div class="dict-status" id="dictHomeStatus">Noch kein vollständiges JMdict installiert. Die eingebaute 1000-Wörter-Hilfe bleibt als Fallback aktiv.</div>
+     <div class="row" style="margin-top:10px">
+       <button class="btn small primary" id="installDictBtn">Wörterbuch installieren</button>
+       <button class="btn small" id="importDictBtn">Wörterbuch-Datei importieren</button>
+       <button class="btn small ghost" id="removeDictBtn">Wörterbuch entfernen</button>
+     </div>
+     <div class="progressline hidden" id="dictProgress"><div class="progressfill" id="dictProgressFill"></div></div>
+     <div class="note" style="margin-top:7px">Einmalige Installation mit Internet; danach wird das Wörterbuch lokal in diesem Browser gespeichert. Karten und Wörterbuch sind getrennte Datenbestände.</div>
+   </div>
+
+   <div class="panel">
+     <div style="font-weight:800;margin-bottom:6px">Prinzip dieses Prototyps</div>
+     <div class="note">Karten bleiben dauerhaft editierbar. Neue Karten können jederzeit ergänzt werden. Reviews werden anhand ihrer Fälligkeit ausgewählt und nach deiner Bewertung neu terminiert.</div>
+   </div>
+ </section>
+
+ <section id="cards" class="screen">
+   <div class="selection-tools">
+     <button class="btn small primary" id="trainSelectedBtn">Ausgewählte trainieren</button>
+     <button class="btn small ghost" id="selectVisibleBtn">Sichtbare auswählen</button>
+     <button class="btn small ghost" id="clearSelectionBtn">Auswahl löschen</button>
+     <span class="note" id="selectionCount">0 ausgewählt</span>
+   </div>
+   <div class="filterbar">
+     <input class="search" id="search" placeholder="Karten durchsuchen …">
+     <select id="statusFilter">
+       <option value="all">Alle Status</option>
+       <option value="new">Neu</option>
+       <option value="learning">Lernend</option>
+       <option value="mature">Reif</option>
+       <option value="relearning">Wiederlernen</option>
+       <option value="due">Jetzt fällig</option>
+     </select>
+     <select id="sortFilter">
+       <option value="due">Fälligkeit</option>
+       <option value="newest">Neueste</option>
+       <option value="alpha">A–Z</option>
+     </select>
+   </div>
+   <div id="wordlist" class="wordlist"></div>
+ </section>
+
+ <section id="review" class="screen">
+   <div class="battle" id="battleStage">
+     <div class="arena">
+       <div class="spriteWrap"><canvas id="hero" width="288" height="252"></canvas></div>
+       <div class="spriteWrap"><canvas id="enemy" width="336" height="336"></canvas></div>
+     </div>
+   </div>
+   <div class="wave-info" id="waveInfo"></div>
+   <div class="combo" id="comboInfo"></div>
+   <div class="combat-log" id="combatLog"></div>
+   <div class="item-combat-bar">
+     <button class="btn small item-combat" id="usePotion">🧪 Heiltrank <span class="count" id="potionCount">2</span></button>
+     <button class="btn small item-combat" id="useGuard">🛡 Schild <span class="count" id="guardCount">1</span></button>
+     <button class="btn small item-combat" id="useFocus">✨ Fokus <span class="count" id="focusCount">1</span></button>
+   </div>
+   <div class="panel">
+     <div class="hp"><b>GEGNER</b><div class="hpbar"><div id="enemyHpFill" class="fill enemy"></div></div><span id="enemyHpText"></span></div>
+     <div class="hp"><b>DU</b><div class="hpbar"><div id="heroHpFill" class="fill"></div></div><span id="heroHpText"></span></div>
+   </div>
+   <div class="review-progress" id="reviewProgress"></div>
+   <div class="paper reviewcard">
+      <div class="reviewfront" id="reviewFront"></div>
+      <div class="review-meta" id="reviewMeta"></div>
+      <button class="btn primary" id="showAnswer">Antwort zeigen</button>
+      <div id="answerArea" class="hidden">
+        <div class="reviewback" id="reviewBack"></div>
+        <div class="example hidden" id="reviewExample"></div>
+        <div class="rating" style="margin-top:14px">
+          <button class="btn again" data-rate="again">Nochmal</button>
+          <button class="btn hard" data-rate="hard">Schwer</button>
+          <button class="btn good" data-rate="good">Gut</button>
+          <button class="btn easy" data-rate="easy">Leicht</button>
+        </div>
+      </div>
+   </div>
+   <div class="row" style="justify-content:space-between;margin-top:10px">
+     <button class="btn small" id="editCurrent">✏️ Karte bearbeiten</button>
+     <button class="btn small" id="leaveReview">Review beenden</button>
+   </div>
+ </section>
+</div>
+
+<button class="fab" id="addFab" title="Karte hinzufügen">＋</button>
+
+<div class="modal" id="editorModal">
+ <div class="paper modal-card">
+   <h3 id="editorTitle" style="margin-top:0">Neue Karte</h3>
+   <label>Japanischer Eintrag / Vorderseite</label>
+   <textarea id="frontInput" placeholder="z. B. 訪れる"></textarea>
+   <div id="duplicateBox" class="dup-warning hidden"></div>
+   <div class="row">
+     <button class="btn small" id="autoReadingBtn">かな Lesung suchen</button>
+     <button class="btn small primary" id="dictLookupBtn">📚 Wörterbuch suchen</button>
+     <span class="note" id="readingStatus">Lokale Analyse: erkennt bekannte Grundformen und häufige Beugungen – komplett offline.</span>
+   </div>
+   <div id="lookupResults" class="lookup-results hidden"></div>
+   <div class="note" style="margin-top:5px">Beispiele: 食べました → たべました · 行った → いった. Bei unbekannten Kanji bleibt die Lesung editierbar.</div>
+   <label>Lesung (editierbar)</label>
+   <textarea id="readingInput" placeholder="おとずれる"></textarea>
+   <label>Bedeutung / Rückseite</label>
+   <textarea id="backInput" placeholder="besuchen&#10;aufsuchen"></textarea>
+   <label>Beispielsatz (optional)</label>
+   <textarea id="exampleInput" placeholder="京都を訪れました。&#10;Ich habe Kyoto besucht."></textarea>
+   <div class="row">
+     <button class="btn small ghost" id="copyFrontToExample">Vorderseite als Satz übernehmen</button>
+     <span class="inline-note">Mehrzeilig möglich: Japanisch, Lesung und Übersetzung können getrennt stehen.</span>
+   </div>
+
+   <div id="editorHistory" class="history hidden"></div>
+
+   <div class="preview">
+      <div class="note">Vorschau</div>
+      <div class="jp" id="previewFront"></div>
+      <div id="previewBack" style="white-space:pre-wrap;margin-top:8px"></div>
+   </div>
+   <div class="row" style="margin-top:14px">
+     <button class="btn primary" id="saveCard">Speichern</button>
+     <button class="btn" id="saveNext">Speichern + nächste</button>
+     <button class="btn ghost" id="cancelEditor">Abbrechen</button>
+   </div>
+ </div>
+</div>
+
+<input type="file" id="importFile" accept=".json,application/json" class="hidden">
+<input type="file" id="dictFile" accept=".json,.zip,application/json,application/zip" class="hidden">
+
+<script>
+const KNIGHT_FRAMES = {"idle": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEUklEQVR42u2aYWhbVRiG31sKoQNhfwQxUcoWvTR4r5vSkSJokUyhrUPZViYGhOD8t4nWGpgDYcogq+mwRdAxAitFSltxdGuxRaFMXCsRHLe6EbyRgt6xvyIsVIrXH+k9PUmzZltTOUfeB0pJ7z0lvN95z/ed7xyAEEIIIYQQQgghhBBCCCGEEEIIIYQQQkhDMXT6suFw2Jc/e55nMAD/ofgTsRYAwOLyCgAge/sf7YNg6CZ+gBwEnV3RrPoXvJV9AU8P/lJT/BsH+pG2TQBAux0FABzqedbXKQiGbrNfFt+yTSE8AORGp2HZJjInUto4oUknu9YTP5XsxpJTQPp0bkPCZgAaRLX4ecdF3nGRSnYDgHZBaNJp+QlYcgrIOy5yo9Not6Not6PoSewDAPQk9sGyTSw5BdAB27D8ABACp5LdQnhdUToAnucZh6+XxOfqkhMAYrFYzd8zYxktErEWVVDfjqaKAHQdSYvn5z4+BuPzIm42ZwEAD6/2Ifzhc6yCGk0gvud5xsxYRixFwyNzuP3Ud9hpl5eim81ZVkHbxeTlK8IRbVMDNRPtBzfa2IrYjuWnY3xe/D3vuFj96A0AQLw1VJGoZafQAY3ql5w8X3M/UF0dxVtDMPce1MoBSveCPM8zsuGw31Wnpl9cXkG8NYQfk58CE9PCPfL/YQC2QCrZjdzodMUeoNoZhh0FHFdUSdZakw4AMidSyjbolM8BXUfSos2Qd1whvlXVBZWf/zx5FgAQfaCcH9r7P1G2QdeksvgTsRYx+wMHFAuuaEcEossEz2XyA28pW5o2qSy+vARZtonv3z+OB6/N1hRZ5olDb7MV0SjxF3o77/iu7IK84+LixLpL/txpwf1rhQHYiviLyyt4/ZUScqPTFZuub3u/wLknT1UEAQB2m+V8cOv3ZTyTSGjhBG2qoLzjAvYQjhmvYdH6AQu9nWjDAABgdWrtxQP9KC1dwkPWSygWXBEQOuA+Zz8AXPiqZUO1E+yMO8bnEW8NiZ+2qXJASkuXxFKk+jJkqB4AYL0R98eXO7AY+hrxPbvK71z7Tbzjv/eiGDfxd6WxXz31GcvQ+6X67s9CbyfOPv5oufWwZ5cIhnFmFsaZ2U2TNR1wjw6QxZcbc3Lvp2Pu1/UxkiPeeTkhSlKVD2eUcUCt06/NRGs+eR6Hr5cQiUTw5rvDGxwxePEb5cVXcgN2dX/Uv7o/6su71nA47C/8VPQHH3vEP9o35A9dmN3w/GjfkP98z3FfhrcituiCajrG5+tevBoemcPwyBwikYgWM1+5JBwEQV7706dzNfs+8piZsYwWdb8WG7FaMzcQ/06zfy0IPpDWKgBanQnrdOfzfxGAYPm51zq+WHBh7j2oxc0I5XtBQQviboMg94B2m2nMjGWUvq6u9IHM5OUrIgjyEeNmBOJbtgnLNpW/I6T8kWS95FxvzN2OI4QQQgghhBBCCCGEEEIIIYQQQgghjeRfAvIy+CKLM7IAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEW0lEQVR42u2ab2hbVRjGnxsCUUHYF0G8UcoWDS3mugkdKYIWDAhNVyZbS8WAENzHbWylBuZAmDLIajesCDpGRI1S2n4YXVPsUCgVaSXCxo20BJNRkDv8KsJCpXj9kJ7bk3/9Q+s8R54flJLcmxCe9zzv+573XIAQQgghhBBCCCGEEEIIIYQQQgghhBBCCPk/Yej0Y03TdOXXjuMYDMBDFH+y41EAwNLqGgBg9MHf2gfB0E18gRwEnV1h6Cz+St8wIlYYANBphQAAJ3tf1ioIPt0sWy9+pxXyxM9kc0hdzjTUCgZgn1Z/M/EFmWwOyUQcBbuoVRAMXQLQSvy8XapJQSIYESuM9IWk8unIp8vqlwtuwS4ib5eQyea8FNQbOwoA6I0dRcQKo2AXmYL2O+8LhMDJRNwTXleUDYDjOEb/cqVh9dfT0dHR9P/seFqLbkj5GjD0mK9m02WaptszmPLuuf7haRiflXHfPwoAeGp9COb7r2jTimqRgmTxHccxZsfTXir6+MvbePDiDzhgVVPRff+oVl2QNvsA0zTdqZkFzxXt0yNNC+17K+0cRfwb6WdqZsG7lrdLWP/gbQBAtC1QU6xFrWAK2sf0k7qcaXh/pW+4oUOKtgUQPnJCKwf4Ve6CRjfy+HY9/dLqGqJtAfyc+ASYzHkOkr+LAdhl+gEAsREzEnFksrmaPQAA+C/e2MylVgjY2BX3DKa8IR0ApC8kXVWDYKgovrwD/tw6g2Qi7uV+IX79FFS+/svUNQBA6PFqfegc/kjZsYRPZfEBILmx+oUDysUS5LQkZkECcV0mP3JW2dbUp6r4S6trXoFNJuKIWGH8+O4ZPHF3rqnIMs+fPMdRxF7FFywOdLf8nOyCvF3CzclNl/xxIILSn2sMwF7EB4C3Xq8gk83VdELfD3yD6y9cQn2HdChcrQe//7aKl2IxLZzgV1l8uQ7k7RJgjeG08SaWIj9hcaAb7RgBAKxPb9zYN4xK4RaejBxDuVjyAkIH7GETZn0daOh2AKBrYh5dE/OItgW8v/bpakAqhVteKlI9DRkqOkAeJ8gjiXNfPYKlwLeIHj5Yvf/uPe+z7juved8x+Vetsd+49Cnb0Fa7XXnmL8R3HMcQYjmOY8hnAYsD3bj23DPV0cPhg14wjCtzMK7MbVms6YBtXNC/XGm5SmUnyLOfrtu/bjpIcsT54zGvJVX5cOY/rwHNXLCj7uHiDfQvVxAMBhEMBhsccfXmd8qLr+T8p9W1xTtl9+qzT7unhsbcsS/m3Pr7TdN0Tw2NuTI6HMooM4zbySrtmpiH3y5tWVBfPXYWx/vj3AnvpzPEeUD93Kc+gLPjaS16fyUdsB1C/J20kwW7qE3u1+JMWLSRO+3ly8USwkdOaHEwr/yzoVMzC7t60k2MIA6FQ+gZTCkfBJ/q4osxhHzCtRWiBkSsMCJWWPlHVJR/MGu3nVIzsbkPIIQQQgghhBBCCCGEEEIIIYQQQgh52PwD0Ss+E25aV1MAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAESklEQVR42u2ab2gbZRzHvxfiggPBN4J4KGWrhpbl2F50dAi6F3m11KKsLRMDwrGKb6aMEDqqKDgZxBqLAUVFAkLVsbYgdRn2hTAGkmqEjMtYObiTgs3YS0Vo7Qg9X6TP9ZJe0zqiex74fiCEu9xB+H6f35/ndwcQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEdA1NpT+r67oXPK7X6xoN+B+Fn+1/GACwtLIBAMivbSpvgqaC+EL4IEETVI4KTWXxl4ezSBhxAMCA0QsAGBl6TikTIqqFbLv4A0avL35xpoSJS8UdtYIGdGn1h4kvKM6UYKZTqFm2UiZoqhiwtLKB/NomTp2ZaBG/YjktKUiYkTDiyE2a0qejiEriC2qWjYrloDhT8lPQUPI4AGAoeRwJI46aZTMFdTPnBxECm+mUL7yqSGlAvV7XRm+v+8ed+v3+/v7Q72uXc0p0Q1LXgMzByA4DdF33Tp2Z8K/74sNz0D53cSeaBwA80chAv/i8Mq2oppL4wd9FMQaAs313AAB/WL8AAOYeelGJAix9DWgXX9d1T5jTtzAVWmjfXe7jKOK/Sj1zV2/4rWfj/bMAgMGeWGi3pEoKisi++sWqF+ILloezO7qkwZ4Y4sdOswu6n1UvPkL84H5g4lLRv1ZsvMJa1V/TnyjXhkYftPDA9ph5N9pzvTiOvv3ldi41eoGAOcFRhMzpKPogxe806QxifpBCcaa0YzPWPoIAALs6j2CHBAC5SdOT1QRNFvHDhBe53kyn/PTz3WwJh+O9oSZULAc1y8atuWkAQO8jzQI9kP1Y2rZUihqwm/gAYKabq19EwGM3F+Hazq7Xh/1WmXpT2gmpEs8DzHQKCSOOn956I7QWVCzHjw4AODJynl3Qv531tH8E5bGTHVd62GbMtR38+WgCzl8b7II6moDtWtCen/NbG7JXX1rHhbYC/OPYNwCA6YvNexsLzfOHh7NwbQd3f1/Bs8kkgCT+XvyUBuxlwl7F0Uynmv2/UcA57RUsJX72IyO4E8bCFG7di+LxxAtwbccv1kxBe5iw2/n82iaMr2Oh7eaJK9dx4sr1lnODPTGMHmhgvfa9n4pkT0NKvRe0On8QS7EfMHj0ULN7uvmbf43okvoWpjB7rzWwX37vM7ah3YqS8thJTD/zVHPFHz3km2GmUzDTKSwPZzF6oNFxJ80IuM8oEFNSMYbITZpYXV3d3k8EIqJiOfj2nddxZOS8Mk/HpBa/XHW9j55+0hvPFLzCV4v+4E4M8YKUq65XrrreeKbgqfSOkPQGlKtui/jt14xnCi1GqCB+VAXxxTg6bBQdrBPXLue817aOVUk7URUiIFhE99PNuLaz9WBm3pPdBOlfzp27esOfcu61qnVd9+LHTrdswGSPhIjs4otNWHC+34ngqDphxKV/T1T6CNjPrrnTPfu9jxBCCCGEEEIIIYQQQgghhBBCCCGEdJN/AHERYTYKkvc1AAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEX0lEQVR42u2ab2gbZRzHvxcyawuCbwTxQRguEhKWw73o6BDUF3m11KKsGxMjQljFN5uUUCJ1KDgpxBqLAUVlRIZFx9qixGXYF8IYSKIRUpJhidxJ0d7wpSK06yg9X8S7Xi7XKmOsz6PfD5Ry11CO7/f5/c0BhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIeS/gqbSwwohbO+1ZVkaDbiLws/F+wEAtZUNAEBhbUt5EzQVxHeE9+I1QeWo0FQWf3lkAgk9CgAY1CMAgNHhJ5QyIaRayPrFH9Qjrvil2QpyU6WeWkED7tDpDxLfoTRbQSadQqvZVsoETRUDaisbKKxt4ejJXJf49abRlYIcMxJ6FPnJjPTpKKSS+A6tZhv1poHSbMVNQcPJwwCA4eRhJPQoWs02U9CdzPleHIEz6ZQrvKpIaYBlWdrxH9fd6936/Xg8Hvj7ysW8Et2Q1DUgOxDqMUAIYR89mXM/9/E7p6F9ZOJGuAAAeGgzC3HuSWVaUU018QEgOxDqmgFOxW4AAH5vfg8AmN/3jBIFGADCMj+cX/z5y9fczif21im0sG2CwxvLMSR0dWpAWObT773niO+wPDKBWHkam2VgaX+fe9/s26dM/pe6C3JOvxDCzk2V3PtO3x/UKf2Qfl+5Lki6CLAsSysIYXtPsL+nd67DZ89vFzM9AnjM8U7CMkeDlDXAOflAZwWtpVMozVZ6ZgH/BAwA7caCOy075Ccztqwm7OlD7bavcSbhT/QzyKRTbvr5cq6CA9FIoAn1poFWs43r8zMAgMh9ndowOPGetF1ReC+FD1o1+3N75u3t05/Qo3hgaREm4Jrgx2z31oj69CvITZWkjITQXog/F+/fVfzaykbXCiKTTiGhR/Hta2cCa0G9abjRAQAHR8e5iridnY9feAConnhq15MetHQz2wb+uD8B488NdkGBex70bjt34sVn1/GqrwB/c+IzAMDMuc7/2Cx37h8YmYDZNvDbryt4PJkEkMTNxQ9owE54F27OiiGITDrV6f/1Ik5rz6OW+M6NjCHPEIbyNK7fCuPBxNMw28aOdeJ/n4KcbadlWZr3p7C21fMl+4Uv+gPbzSOXruLIpatd94b29+H4PZtYb33lpiLZ05D0yzgv45/ei1rf1xh67JFO6lr62f2b0ynFytOYu9Ud2M+9+aG0bajU62j/vdWFAcy8cLNjxk+/bNcQnxF+Ew6Ojku7H1Lm9Q1/VITPnkd+MoPV1dVAI+pNA5+//rLU4kMl8asN03730YftsWzRLl5YtJ0IEULYQgjbS7Vh2tWGaY9li7ZKr6hIb0C1YXaJ7//MWLbYZYQK4odVEN9ZRwetor2d1ZWLefulv69VSTthFSLAO+3+m27GbBuIHjoGYMGW3QTp3w2dv3zN3XL+06kWQtjRQ8e6BjDZIyEku/jOEOb/7ncnvKvqhB6V/jVF6SPAn+dvZ35gC0oIIYQQQgghhBBCCCGEEEIIIYQQcrf5C20IXVnWPOPJAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAERElEQVR42u2ab2hbVRjGn4Ro7UDYF0G8CMNFQsJycUJnh6D7kE9NLcjaUjEgBCt+maOEEqlDwckgxDiMKCojMC061g4lLsMKwphIOiK0JMNy5d4xZjP2dQitG2XXD9m5PUlvZpRiz5HnB5dy/0F4n/O+73PeW4AQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGE/F8I6PRjDcNw5fNmsxmgAP9h8Odi/QCAxWu3AQCFtbvaixDQLfgCWQSdsyKgc/BXRqYRNyMAgAEzDAAYHX5OKxGCuqVsZ/AHzLAX/NJsBdkTpS29ggJs0+r3C76gNFtBOpVEo25pJUJAFwG6Bb9Wt9tKkBAjbkaQm0krX46Cuqx+ueE26hZqdRul2YpXgoYTBwAAw4kDiJsRNOoWS9B2132BCHA6lfQCryvKCtBsNgNjv65vWf2dxGIx378XzuS0cEPK94DMrmDbpsswDHdoIus98/n7RxD4zMGNUAEA8NhGBsbx57WxolqUIDn4ABAt571S9NEXP2Dt6Z+w22yVohuhglYuKKTTKGL+/CXP+UTfexUNbG7EBO+sRBE39ekBIR3KDwCI4AtWRqYRLeexUQaW9/R5152+B7Sp/1qUoMLaXWRPlLxz4fv9XNIvqY+1c0HKZkCz2QwU7tXxTk8vzkPHTm26CTMMSOLIPUDlbFC6B4jGm04lUZqtbNkLdO6AAcBaOoehiWxbb8jNpF1VRVDehg5NZJFOJb3y8+1cBXsjYV8RanUbjbqFK/MnAQDhh1u9YWD6Q2XHEsr3ALH6RQY8srwAx7K7Pu93r5Y/qqw1De70ChfH/WZB6VQScTOCn996w7cX1Oq2lx0AsG90iqOIXoI/F+uHOGQx5OBXxw/dd6X7Dd0cy8at3XHYf9ymC+qVzsmnsJevvLiONzsa8I/jXwEATh5vvbNRbl3fOzINx7Jx8/dreDaRAJDAnwufUIB/gzwBTaeSLf9vFnEk8DIW45e9zBiUNmEo53HlTgiPxl+AY9les2YJ6mIx5WmnCLo4BKe/6fe1mwfPXsTBsxfbrg3u6cPYgxtYb3znlSLVy9CO2zLRgOWxQzemvnwIi33fY/CpJ1qCLV/17gmXFC3nMXenPbFfevdTZW3ojpcgEZRCj0JUxw+hCmDqt+ttQoi9QgnAWIcIKn8dU25FyJZUFuPy+i4807+2uXKOnUJuJo3V1dXNEiZlRK1u4+u3X8e+0SmthnPKiSGO6pLjfvDk4+5kpugWTy94ewdxX6a65LjVJcedzBRdnf5FRWkhRFDl4Hc+M5kptgmhQ/BDOgRfjKP9RtFyL7lwJue+du9cl7KjxRcxuYn24mYcy0Zk/2EA51zVRVB+Gjp//pI35fy7VW0YhhvZf7htA6Z6JgRVD77YhHV+++2GPKqOmxHlP9ArnwF+e4Z/8k6v7xFCCCGEEEIIIYQQQgghhBBCCCGEkO3kL27DN6mm+kz1AAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAESklEQVR42u2aX2gcVRTGv1kCYQNCX3xxgkizOGTpDK2S/kGweVgUdhehGEPEfVpEfGk1VN2SVgutBGJcAxZFRbYoAUt3S0qaLcanUpEkrNAy21oGJhIwU/pYERJTSteHzdzOTCY2kVHnwvd7GeYfLOfb851z7xmAEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghJDIUmX6sqqot77njOAoF+A+DX00nAQDzS2sAgPLKA+lFUGQLvotXBJmzoiPuP/BO+QU8+8nN0ODfeuldlAwNANBnpAAAA/nnWzKJoMj27/cGXzc0EXgAqEzWoRsaxkaK0mRCQqZ0fVTwi4UcmqaF0mhlQ8GmABERDH7DtNEwbRQLOQCQToSETPbj0jQtNEwblck6+owU+owU8pm9AIB8Zi90Q0PTtMAM+BfsB4AIcLGQE4GXlVgL4DiO8sovq+I82HICQDqdDj1ePjcmRSGWogs62pXwCZAdKon7X318GMqXi7jdUQYAPHH/KNTTB9kFRY333987PS6s6My3P2DlmR+xw2hb0e2OslRdUAckojZzVXQ+vR++jibaHZGXk7d6oRvciojcfg6cvyKuN0wbTdMSmbD/qU5x70RnFta1C7SgSNP0xNe+4G/WIf1c+Ey6LijWFuQ4jlJW1VY20NO7Pb5XGMVIASHiUIAIKBZyqEzWfdf0wCaci3XtgrAvr5AUIAIRGqaNi9U6erQUmqYF3dDQMO0NImSHSr7iPDZSjO0OaawFUFW15e35XRYtGz1aKvSd7FAJN2oTuFEDUo+1i3NptBJbERKy2I9rQY9fn91QC9wNuYvVOhatjXWgMf5WbNcGCVnsRzc0/HT8iC8LvCJ42TUwzCIcFa33XoTy0azvWt6aWq+47cP96fUb2iEhzu87dNh3m8KGKMA2vR8AqukktD13cczTAe1LrmD4/fYG3cTppG8RBmsKM9oh3PltCc9lMgAy+HP2cwrwTwIf1gHB+BSHldcwry9gbrDfH3x3Rbwuwt8VataAkMC7w5fg/PebqWRov3/g/BWfNZ01juCs0a4Rq81LworsP9a4F/So4IdNvbwDGABYWO3CudoDzHd+j/27d7afuf6ruO9dqPVOj6N672Fyv3rqi9gO6v/3DAgOXeaX1kKDvy+5AgCYG+zHxNNPti1n904hRrGQE3PhmfViHGxXmQFb8H8Xdxd0YbULAPD2pcuYG+wXQ/mxkSIAYHl5+aF4noxomDa+++BN7BoYjvV0LLZ7JEFBvLMAr524z4UJUZmsx340Gdt1gDfApdGKCP5mz3V3dwshXFsayMd/LizNZpwb/M2KqeM4iqqqrTfeOQNAnqG8FFsRbhHdaiezaNnQ9rzMD7OiqAO1mavb+tDKXYD1aClkh0qxFyER9+C7i7Dg8H0z3NWvbmjQDS32X0jEfigfVnC3885W3yOEEEIIIYQQQgghhBBCCCGEEEIIIVHyF6/D/eCzTKHqAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEUUlEQVR42u2ab2gbZRzHvxfC6gRhbwTxypA1eLTsjqlkbAhaJPNFUwtiWyZGhKAvVymlZNSB4KQQaiy2KCoSWQ1S1g5HXYotCGPiUonQkUzLwUUK9sbeitCuo+x8Ee/xkiWz2ijPM76fN8ndcwfH7/v8/jy/5wEIIYQQQgghhBBCCCGEEEIIIYQQQgghhJD7CU2lj9V13Qteu66rUYD/0fhzXfsBACvr2wCAzOYd5UXQVDO+T1AElb0iLPsH3sw8j6fe/6mh8df6RpGyDABA1IoAAPp7n/FUEkFTbfYHjW9ahjA8AGRzeZiWgfRYUhlPCKnkrn9n/GQijnLJRmo8e1fCpgAtot74xZKDYslBMhEHAOVECKkUfnzKJRvFkoNsLo+oFUHUiqA3dhQA0Bs7CtMyUC7ZoAf8B+EHgDBwMhEXhlcVqQVwXVcb+HlLXNeXnADQ1dXV8HdxNq1EIlaiChp5MFQjQM/JlBj/9L1T0D6p4EY4AwB4dGcE+tlnWQW1muDs71yYEKFoemYZm09+hwNWNRTdCGeUqoLCUIj5S1dE5dP57usoo1oRBXl7rROmxVZEy8PP8fOXxf1iyUG5ZAtPOPZYmxg709YDe/UCQ1BL3fTMZzXGb1Yh/Zj4ULkqSOoQ5LqultF1r6eupvdr/KAwmhUBAuIEc4DM3iC1AP5CTEvEkc3la8bMuiacj716AT0nUzW5IT2WlLZBp8lu/M+tIdFmKJYcXJzLo8OINBTBzw3X5ycBAJGHqrkhOvqBtA26kMzG93s72VxeeMDD15ZQsZ2m7zYaK068KW1pqkQSTibiMC0D37811DAX+A25i3NVkQ73D7MV0SoKg933nOmNmm4V28FvB0w4v2+zCtpL+FlZ38ZrL27hdF0C/nbwSwDA5NnqczsL1fsdfaOo2A5u/rqOp2MxADHcWvqIArQiBBVLDmBN4ZT2ClbMH4RnBBdhWJjA9dthPGK+gIrtiGTNELQHzn21v2G5efz85ZrVsS/GwL4dbJW/FqFI9jCkyR6Cggx/8QBW2r7BsSOHquPXfhFjfpXUuTCBudu1jv3yOx+zDN0rfje0MNiNyccPVmf8kUNCjGQijmQijrW+UQzs22lYLTEE7dH4k6/eEvemZ5abChEMTYf7h6XenJHyo+rDUGbzDuYvXUFhsFtsyqfHkjXvbGxsiP9+aMrm8srsjEknwNUTEe/qiYin67qn67pXWK14hdWKN3Vuyatf0eq67r0xMuU91zvkBeGpiH9J/V5wajwrVrzNnl+cTaPDiGB6ZhnTM8tob29XYuZLuw5wXVcbwF8z2Dd+s2rmTxE8IKWUt0t/KiJ4rdKRw/tCAF3XvdR49h+XkRXbgfHES0pszEvfivBXwLsVIdiC6DBSWJxNS31aOiTz7PdPQUStyF2nH5oR3KwxLUP6IyrSn4q4V07YzTu7fY8QQgghhBBCCCGEEEIIIYQQQgghhLSSPwDhpA8t/R3peQAAAABJRU5ErkJggg=="], "attack1": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEMklEQVR42u2aX2hbVRzHvzfE1QqCL8LwXqRswdBgLttDR8tg+pCnphZly9gwIoTh2ypjC5U5GGwyqLUUHcqUkaEWkaZDqYtYQSiDscwIjpuxcuFGCvYOHzcG7TpC40N2jjfJtU4b5Bz4fl7C/Qfh+z3n9/uecy9ACCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQ0jUMnf6saZqN4LHv+wYN+B+FLyZ6AQDl5XUAwNTqhvYmGDqIL4QPEjRB51lh6Cz+0mgeSTsOABiwYwCAAyP7tDIhotuUbRd/wI5J8QszJYyfK3T0ChrQpdEfJr6gMFNCLptG1XG1MsHQxYDy8jqmVjcwfGi8RfyK47WUIGFG0o5j4mRO+XIU0Ul8QdVxUXE8FGZKsgSNpPYAAEZSe5C046g6LktQN2t+ECFwLpuWwuuKkgb4vm9kbq/J483yfiKRCP39/usJLdKQ0j3g+FORDgNM02wMHxqX9332wVEYn9ZwJzoFAHiufhzm2Ze0iaKGbuKLFfEle0yuAY703wEA3HV+BgDMPfGqFg1Y+R7QLn4x0Ytiohfl5XX0z0+GNtrTS/3ciuj26BfiG+8vyOhZf+8IAGCwryc0LelSgiKqj/528QVLo/mOlDTY14P47v1MQVtNQO3i/5L9WF4XC6+wqBq8TxeiqsbQ4GKsvdaL4+ipi3/VUjsGBMwJbkWoXI6iOoySXDaNwkypYzHWvgUBAO6vl+V2hWDiZK6hqgnKxlAx+i/ZY8hl07L8fFssYWc8FmpCxfFQdVzcmpsGAMSebjbogfyHysbSiC6jX8yAZ28uoOZ6f3t/2LXK5NvK7pBGVB79QROSdhzX3h0L7QUVx5OzAwBePHCMKahbXD/48qYjPWwxVnM93HsmCe/+OlPQVkf/m6+t4Z22BvzTwa8AANNnm/fW55vnd47mUXM9/PH7MvamUgBSeLDwCQ3oRh+oOB5gf4SjxusoJ2/ImRFcCWN+ErceRrE9+QpqriebNUvQFvj8m97QuDk0u4ih2cWWc4N9Pchsq2Ot+p0sRaqXIUP1EhTcajj25ZMo9/yAwV07mtdu/iaviZTUPz+J4sPWiX34zAXG0P8ifkeJedSUp194vnlt1w5pRi6bRi6bxtJoHplt9dC0xBK0BaZWNzD9xgN5fP6LH2FZVqgRQ7OLOHzmgoykKr8di+gi/tyVqwCau6DRUxdlSbEsK9SIATumvPha9AAAyNxekwZUHC+0notV7srKijxnWZby7wWUiqG+7xsZtH6ICwDj5wpS/M2eNU2z8daJ8wD0eSmv3DpAiCaMAIDhQBN9nDRTc71HL2YuN1Q3QfmPc+euXJW7nP80qk3TbMR3729ZgKk+EyKqiy8aanB/fzOCW9VJO678d6LKz4Cw8vRvnnnc5wghhBBCCCGEEEIIIYQQQgghhBBCSDf5E7svI13XxKMHAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAESElEQVR42u2az2sbRxzFn8TiYEGhl55Wh1ALFqvW0h8ocS5pD6EHWwSKrWKIoCByyKkQghGYkF6Ci0ldKCWFQFAgcUiIHFpSO9CeglJojFIoK2qzsA4+aEP/gCLVwUQ5rGc9u5ZlS3KU3fA+YIyklVa8N/O+35kRQAghhBBCCCGEEEIIIYQQQgghhBBCCCGEkC5RVbWpqmqTSuwQ6af4tVoNABCPx2HbdqSbz5Afd/MZQSPaz5s9+fsZAKBWq6HTmaCqarOUHEQpOYgLsSguxKJ4G2ZTtN837MYEIb5g9OgRAHBNkP8YQfsIubhUdkT88P0DxdG/85/jk+//8RjwZGMTALB2ehopXQMApPUEAGAyczJU0dT3L9qpCf7R7xdfCA8AxYVlpHQNczP50JjQ9wiybTsymTm5Zxy1i5H9xM/nxlE1TBRmi6GpD9E3cdN2JtS+3Wwrnl/8imGhYljI58YBIHQmRN/UjfcyoV38CKqGiYphobiwjLSeQFpPIHPqGAAgc+oYUrqGqmGyC+rYhFvvYb/4AeAKnM+Nu8KzDe3RhNHqcUfo1IobH7ZtR7KrDffa+frLXe9PJpMt/z+8OxeKQqwEYXuidj8GIIb4RB2LS+1H/8O7cwAKbuEtl8uIXFvH869GgL++w+MzN/Bs5lN2QZ3MgPhEHfGJultUq4YJ44y3GMuj3zHBiaIfb/6O+seP8a7uRNFzZZ5dUDcmiBErsv32B7d3XTc2VUBhtohSchDDD660LLTfrA1zJXxYC7WKYWHr8tmW7eefX362a2tCxNV8/SUjqFeKC8vuCFcuXt/1+ol7j1rWCGFGWPaGlKCKL/Z4oHvFrxiWZwUsmzB69Aie5q5ul2iHuZl8M8izIZBfTIxcOYpEfXCNAbB1+axndqT1BCqGhTuXziHxjjMT0tM/BHpvKNA5Ka+E5X0geUEmhJdniGxA0E1QwiC+zPCDKwCAJe0L14S9YikMKAg5IpZETP1SWsbI5HkAwP+//cQu6DBGv9zlyKybO7Wh1fNsQ/uAbMKdS+fQqP4aKhOUoI/+Vqw0YsiYP+88sT0BhgeA0gvFNcECPMWYBhwCK40Yjg/WPc/JK2FsbKL0QglFB/RWRJBH/O3H2YEtT5HmDHhNo98v/g39ayeKNpxWdWTyfODPBQI1A/bKf7/QfrKrDcgHN2unp5Ed2ArFoUw0zKP/ae4qsqsNj8jrpoWUrrXcwKMBPfBH8z8Azi6ocvE6sqsNT3G1bTsiDmrCRKAM8J8ByxRmizhx75G74hXX+68b0sK1JRG4ImzbdiQLZzfUXw+E+Pu1lVXD5KF8ryYAgDBibKqA1PZrB+np100L2kcTAO43WYR7ZHGp7P4O6KDiD2kJDGkJjE0VAn84H1gD5LPhtJ7wHMS0Q9SAlK4hpWuB/4VE4A9kWkVTJ+856PsIIYQQQgghhBBCCCGEEEIIIYQQQshh8gq8qjbZ+J9SbwAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEc0lEQVR42u2b4WsbdRjHvwlhowFBX/jGywtZg0eDd0wlc3uz+WI4SGNB2kjAvCq+8I0DKd3hKPpCiZQugsgEpWSgBce6oWztQF+NKdiSvRgXbTm4jr64G/sDJFml7HyR/s67y61NGxfv9PuBUnL3y/2S5/v8nue553cBCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQv4xEoOaSJIkBwBs2070ew1BP9f6XwkgSZJjWRYAIJPJHMhwkiQ5i7khAMDK5hYAoNZ6FHsRkoOaaOXuPQCAZVldnrwf4wPA8ecPAwCm0klIkuR4/+ImQGqQk63cvYfjR4/AsixkMhmnF+99UHsdr3z2u/86OytgfWwamioDAPJqFgAwUTzpxGlVDDQHXF263fHgo0d6DkdB7/caX1Fl1/AAUF9YhqLKmD0/GZvQNLAQZNt2YqJ4sq9wtJfxJyujaOoGtGodcQlHyUFOtpcIvRgtaPyGbqKhm5isjAJA7ERIDnrC3USwPt3yGS0YfgRN3UBDN1FfWEZezSKvZlE8fQwAUDx9DIoqo6kbrIL2K0Iv4QeAa+DJyqhreJah/Yrw7bOhY0prbfd1rfWoa0wulwv9f/PybCwS8b/+AUXoAYAVZRUN3fRVMZIkOVPppE+AQllz3//1hfeQ+GoD91M1AMBz21OQPj7FKqhn419LAy88g8wHh3cd6/X+m5dn3VD0xTc/ofXyz3ha7YSi+6kaq6D9hKHMeAuZ8ZZbSjZ1A/rbW6EGLJQ1aNU6FnNDGLk+F5poP1ofYS+o35s1EYZEuyGs/Pz1rde6WhMiWcepR5SM4ofKq1lo1fquyffElVuhFZIQIy79och5iVgF9YVlN95r1TqaugEl0PfxrgJh/DuVi76xACLdmoikAIWy5jNgXs3COXcGl9SzvuPbn7yD1My8b1xDN/Hdh+8CALJPdVZDfvrzyIoQSa8QYUM077zevj427bsh864I0ZoIChBlEVJRFMC27YQkSY5z7kzXuZHrcwCAJflNV4SGbvpEiBMpxBwR7xu6CQD4YXEZQ8obGJY7gjz88UtWQQcJQWF7AEE2DNMV4XHnWIY+YbwiNHUD7eYNtJs3YiNCKureH8ZqO42i8f3fBzwL4LedryREMAPJmAL0yWo7jVeHWl31v8vmFhb/9H+tKJehsQ9BPuPvvC4d2u5K1FwBT8D7g8a/pJ7tlKqbc+6xFyfej/TeQKRWwOPif9DQQUprbXg3btbHplE6tB1548cqBIV5/53KRZTW2j4DbxgmFFVGamY+FrtisRHgF+cPAJ0uaGpmHqW1ti+x2radEBs1cSJSAgT3gL1o1TpOXLnl3vGK8cFx4g6YrYh+RECnGRfMB8L4e5WUTd2IzaZ8ZJtxACCEKJQ1KDvneqnnNwwT8kvjAK45zAF9cnXptvscUK/GH5azGJazKJS1yG/OR1YA78O8eTXr24jZDZEDFFWGosqRf0Ii0svzIL+ICTP2f+GXNIQQQgghhBBCCCGEEEIIIYQQQggh8eIvLXdEC1C2l60AAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEdklEQVR42u2bz2sjZRzGnwmRsP0TnDksa3RoMMMu0jW9VA/LKk2QShtZsBeDV4USNFgKHoRK1KygeFCWetmFxUYQyS64eJBcthgPZaJd0k0XKZnFo6cuFWk8pO/wZjqTNDVN522fDwzNdNpOeJ75/nrfFCCEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghpwVNxTet63pbPnccR6MBIxR/NXEOALD25y4AoLSzp6wJmqriC2QTVIyKqCri/1W6iheu/+Er/oPX3kPBMgEAE1YcADCXmWqrYIKm6tMvi5+0TFd4AFi5eQdJy0RxMRf6SIiomDf7iZ+bT6NuN1BYXjlQsGnAkPCKX7ObqNlN5ObTAKCMCREV04+gbjdQs5tYuXkHE1YcE1YcmSuXAQCZK5eRtEzU7QZOfQQM8wnTdb0tH0HpB4ArcG4+7QqvGtFhCNZqtWAYRvuo7Z8stPdJz6JzLbvxxL1W2tnDtOdvJBIJ3693bxdDXYi1YT21rVYLAGAYxqF7cSG8X3rpVXxFzz99reBe++azd6B9vYXH0RIA4Ol/89A/emkg8XVdH3nrqg0zdQCAMKKfGUF5XU4xgtT5mHtNvM5uPHFNSO7PAG+PPwYA/G3/CgAoPzVz6FZU1/V2uVLFXGZqpBEztCLsOI7mOI4mi95qtdxDzulBE62f+EHX8mMR5MciGP/xU99C++GD8c57+Hh3oBpVrlRH2jUNfRLeN6EtR4IcGYZhBC4nDJKGZN6yvwBsYH3/+sLmNnLrj5Cqv3g2lyKECd6U5D2/f/XZgcSXqZivAwBmsmlo+7NA+/1XkDofw5okvvFB7FC1qFypnq45wC8leZm89xALm9tY2Nw+0j2eMePdBe2Tn7AUm0Zq91UAwJftW6EfxI59Ma5XNMgIE9bWH3V9//4bL/e9R81uuhPxTDYNY/Z7ADEUljuLc/abu7BuHexwhDHlShWpixcO3PtUGCB3QMKI1cQ5TN576PuzqYsXus83t32FmfQYULOb7nQMAIXlFff1cwEDo0g7svij7oJOZEARXZBoJXtFRs+C/D+fWNnsM2WAd+iRU4FfFBwnsomjFv9EDQgyJT/W6Qsmv/slMC0NU/STFD90BsjRIIwAgNV/orj+w889a8VR09VcZupQyyZnxgCvEdPXCvi9/DkA4Pm5Bdy9XewqoEdBiH6SwofeANkIsegmxJejQ6wNyZOyd4M+qCsLA0rsCcvtYy/xvSaosCmvxI6YmKoH+Z38WCT0+8EjG8SOozDLfGu923W+FWtiJptGAUBxMRfqj6dEVRA/SPjf5r9CcTEHbHRqg7xBowqhT0GO42jeohpduoHSzp672SIOUaS9i3RMQcN4o0s3MGHF3TWfft1McTEXuo5HyQiQ21Ahfr9txq1GE+alWSUeLC3s4pcrVdTsJup2w50DgsTXdb1tXprtSkFh/1REJOziA501fbHx3k9MIX7SMpG0zNBvyIQ+AgadYP3EVvkfOAghhBBCCCGEEEIIIYQQQgghhBBC1OQ/UL1D391aXscAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEYUlEQVR42u2az2vbZhzGH2XeQvcH7CIfRmMQNVh0jKzuJafRjdSEltoQaE6m122HkZmGwDb2C9NlPZQdWkJ3WVhZHAbF62HsMHIq9aBFXhvE5DKG37LdBhnpXEq0g3nFK1m2k3aOX3XPB0JsR7aj53nf7y8JIIQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEkGcBI6n/uGmavvpcCGHQgAMUfz17CABw87cOAGBlZzeRJhhJFl+impC0XZFKkvh/rJzAq1/cjRV/a24RFdsCAEzbGQBAsTDj627Cc0ky4Ju7/4RWvyp+LiI+APy9+xL+/N35YHt7+0Ndz2kiqUl4mPhXv/4e5YWTqHx6tSdh04BITFd/9vPeOPEbjoeG46G8cBIA0HRcrU1IjVN4AIgm1BK6r0djd1zylQKrj6XwhddfQ/3HW8jZVugYGjBATNWQEsy+CVSGHwDBDpDiS+GTwoRO4keNUMOSEMIo3XsY/D1ackqy2WzoNwDcuFbVtiQ1xmmAupJV8i9PhsOSIvy7L04EBqxnD+Er++3QsVc+fwvG5RYepFa6ueH961r3A4Zu4g8yQr5Pvq5WQmo4OnfkAQDgL+cWas+fQnWpHDRmg5LxOIwaSw6IW9GDYn0/I+rWaRTc73Dk+gVszS2i6biBCVHan3WQPm/6tfpm3+8rFmYOfL40lhCknphpmv4gEwZRt04DAKasDHK2FZSi/ntvAACO//Arbt65j3zzGAAgfb5r5CATIoaM3AgtYuOTmrA1t4iW6/UYIPuBaTuDfPMYLvlrAIDqUjkUhqQR+aOHw7vrzv0eI0ZlghadsBDCWNnZ7VvZ7JWG44VzSOfN4LFqjhDCEEIYxcIMioWZHsHzRw+HTKnVN0fWyGkzipCiSCNkYh3GlJVBy/WCZkt2wk3HRfrMDi75a2g6LhqOB+dsJySkakTUhOjOGJUJ2k1D1RCx/iiF0guP92yCSjcZV4KVX10qo4pJOGc7sNe6eUiH8YT24+jU8ioef3xuT8e2XA+ffPROKBQ1HC+I/QBgr3VFN81wRRTNA9FcMKo8oFWDIldku9020um0PztfwS+1i93SNWYnyDAVXf2qCdN2JqhmohVQnOgHKb5WO8A0Tb/dbnfLxXS6JzTEhaOo8ADg3t5AsbCB2fkKblyr7kv0OOH/F2Vo3A6QRkhT/mvikq4q+jPbiD2JKbPzlWCoJrvn49/+9NSfrYo9rnFEIi7Kq9VKtGHrN6aQTZp7ewM6zX4SaUC/bjlOfNWE1PJqqAPWsspL2g6IQx3uyXDVmvRwKgHnNpGUlR83K/p54UuU7j0MOlohhCHzxJSVScTOTkwOUA1ILa+GZvzDkrbOF2RSSRB/dr6ClDLn7xfT5bFqf6D7jVmG7uLX6pvBcG3YijZN07deORMKPzpfD9Y6B6izmmk7E1zpGiamFD9nW8jZlvY3Zmm/A/Zbt8eJndRb1wkhhBBCCCGEEEIIIYQQQgghhBBCksu/AGBKGZBYTsEAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEXklEQVR42u2a32tbZRzGn1Ojof4B3pwiQoOHheXA0M3uZldjk7aUjTVQWK+CdzJBpIbViXqjZFscOrxwjHmzskKzm5EVFK96s7IIlRO3cvBEivgOvRM6OgPSeNG8x/ecnCTNZpr31OcDpUn7EnKe5/u+3x/nAIQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEELIfMOL6xU3TbKjvhRAGDdhD8ZfSwwCA1Y06AKC4tR1LE4w4iy9RTYjbrkjESfzfiyfw2ucPIsVfn5pD3rYAAIftFABgevJYQ3cTnouTAbce/BWIflX8TEh8AHi8/RL++NX5eHNz8xNdr2korkm4m/g3bt5FbnYC+U9vtCRsGvAfESV+xfFQcTzkZicAAFXH1dqE2OSAqOQrBVZfS+Enjx9B+fv7yNhWYA13QFPMZ4lIefwAQMa2fJFzsxOYPH4kVrt4aFCRvJQe7skIIYSRffjEfx8uOSXpdDrwGwCWFwvalqSGDseIFDZKpLBB77045BuwlB7GN/Y7gfXXLp+D8XUNjxLFndzw0R2t+wFj0OK3M0IKPz6TR8a28PrNt/3jZ+yVZOA4Wp+a848jAHjrwCMAwJ/OfZSeP4XCfC5gsPxsHYzZsyQshDCyMBsyglURJdKgLBSznC8Bp3MuOHDnEtan5lB1XN+EML99VsfI+R3hS+WVyEZtEMbseQSY5r8mtDNiN8lXUrZOY9RKIWNbfinaeP8kAODodz9j9cdfMFZ9AwAwcj4Z2F1h8RVjWv7XL1P2vAwVQhhFxQRV1LAZUYKH+wC4XmtUXfwWFceD0RT/amOh+Z9c21wjhDCmJ4+1NaZfY42BlKFCCKO4td1Syaxu1AM/vVJxgmaM1d/0X6tdcqfv1U7kUnmlL83cwDphebHSiHZlZTdGrRRqruc3W7ITrjouRs5s4WpjAVXHRcXx4Jyt9yxic2f0zYSBd8JqxBWbF6fmiF5MUNlJxnk/8gvzORSQhHO2DnvB1GZKqtUsSN0VT0PN3ZkBqZVQxfFQmM/5n20vJHuqcjol5307jOvVBDX6P/jwCz/q1cro3loNz1Ji9kP8gZShvUTe+EweP5WuIPvC35Frytbplr+5a7chG7jlxcKuRVfPdnX9vbVaX2/saH23SDUBAA5Ov4trl88F1lx59eWW0lQVfjc379VjRkZ7qbxiHD00uv8asac1QQ7VopJ0uH+Q86HlxQJUYTsdJe12wP/egLA43cRX50M11/OPpEGIu28MiBphdBtjrG7Ukbhw3S9BdZ2IJuK2A6JQ7xPI46qW9HAqBtc2FJfIj2rOfpj9CtmHT/waXwhhyDwxaqVisbNjkwNUAxIXrrfM+DslbZ1vyCTiIP74TB4Jpbttd6bLtWpjpvuDWdr3AaXyij9c6xbRpmk2rENnAsePzveDtc4BanN02E75851uYkrx5dMSuj+Ypf0O6LWGjxI7ro+uE0IIIYQQQgghhBBCCCGEEEIIIYTEl38AXl5oUGrRRzgAAAAASUVORK5CYII="], "hurt": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEH0lEQVR42u2a32scVRTHvxMWtlsQfHb2oTQLQxZnaJXU5EULFgtu0pe2InSfFhERagg1XWmtPlQDIUbQ4oNSVrQBazag2GzRPoVI2cgUIrPYMDAj+zLFvyAhpXR9mNxxZrLFhe6We8v3A8syOxO4Od97ftxzBiCEEEIIIYQQQgghhBBCCCGEEEIIIYQQQp4mNFUWqut6J34dBIFGAZ6g8evFHABgvb0DAFjYevhUiKCpZHxBXATVvSIj8+L+WXgNL37+V1fjb56YQdUyAACjVgEAcGri5Y5qImgq7f648U3LiAwPALXFBkzLwNyFilKeMKTKQv/P+JVyCS3HRXW2tidhU4A+kTa+7XiwHQ+VcgkAlBRhSJXwI2g5LmzHQ22xgVGrgFGrgIljRwAAE8eOwLQMtBwX9IABhB8AkYEr5VJkeJWRVoAgCLTTd7ej63TJCQDFYrHr983rc8okYumroHP7hxICvP5mNbr/zWdnoX3t415mAQDw3INz0C+/wiqo34hTbxAE2s3rc1EouvL9LWy98DuetcJQdC+zwCroSXjEyC/zXRPtx5sjbEUMMvyIa8HYgWwiUYvnGIIGEH4AYHxpFeNLq8h8eHVPdTR2IAvj8ElWQf2sgsSO1nW9s7yytudQFhfhTvkrAIBx+CR0Xe+okgcysi+wXsxFxhWn32jxu55wB6IhV8LP9QaqszUAwNyFivTNOWkFiJ+E0wm35bgwU51QwXbrBuz2LQBAdbYmvQhDshsfQFT1iI/vepEocY9IY89PSV+WZmQ3vojxouFmOx5810t4ghDhh4/eYRIehPFFwrUdD7cvvgcACREEOXMSz5+axr7j71KAflIpl1BbbOzJBXERHnzyVuI3VcjIvvvjItiOh9s/AhPuT//dcJMJOGdOwnc96BSgfzTfOIrxpVUAwEu5rUeehtHeQb11AwDgASg8k6UA/TgJO2d28MFiI6yIdn+fvhS2qpvXskkx2juo3w//rdGZL6SfEWdkN346BMG6irPaGaybf6Bz/nh0/1srTM4j7fnEeUF2pNoZ8Txw+u52tHNFHb+8sgbb8SIBBLVd74ifGzZPzCgxmFFGANEJnb62D+vZXzF26GCYrP/8OyGE73oYNgrKTMWkKkPTY8g0IhHbjod8Ph/G/UMHIzEq5RI+vTwVtSnIY3hC+rq54XeaG37ny+9+izqdousZRzzX3PCV6IhKeRCLhw5d1zuiu5nu+4gxZT6f7+oRyytr0o8nM6p4hTB+t7IyCAJN1/XO2+9fARAO64UI9IA+IMrJXmp63/Xw6uQUhFfInoilFkBMwnp9201UQMNGIfH6CgV4DOMD4dCll8pm2AiHM6ZlwLQMJV5Rkf7FrEcl516e7+VvCCGEEEIIIYQQQgghhBBCCCGEEELIIPgXWoInbL4WzpAAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAABiUlEQVR42u3bUW7DIAyAYYhyC3ye3W63BGm3yF4WKUKQJQ0Um/6f1IepXVVhbGyqOgcAAAAAAAAAAAAAAAAAwEy85g8XQtiOf6eUPCF74+Ln8oCQAR0XP8ZYfE5EHFnR0c/3V3H318yYFepKz8xBWGYIWozRWQ3CMkvmWA2CqgCcHb6zWhxQO4Q/oRtSnwF53197DfNA4ww47ugrmUAG4CWr9i7olc6IS7xG5efuVBxC2D7lEq9rEJ5cSXBn1LgVbUljEDiECQABUFd+7nY9V4Y1AtBp8a0HYRm10PujxftZvkH1o3d5vnOfLKaIuLPvkjUOZMMn4Za712ImTNcFlc4CbkvfNGiVJmLtE7AfGYQWNb/2Hvtz2nf+sBKUUvIpJS8ij1vI2v9bKDvDD+F9kURku3uY7q+zPIipPSOOjys3npbqvqoM+K90lBbzrPZbs1r80KWylZcmEdloPRu3rGelxeo3Yav2xb9aZv46Kr4L7jms8QONQcMaOxoAAAAAAAAAAAAAAMCaXxhGCfCcmn8zAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEZklEQVR42u2bX2hbVRzHPymRWMF3IdGFNXhpMZcOyRZfhg/DQROLYCtF8xT2qjKkRmrBB6UQSy0KexvxwT5Uk+Koa5lvMhCrEao303IhSsVc2YswFDoKY/EhPWc3/9YJ1pxbfh8ozbm5CYff9/zO78/JBUEQBEEQBEEQBEEQBEEQBEEQBEEQBEEQBEEQBEE4ToRMnlw0Gm36x57nhUSA/9H45bFhALZ29wFY2rt77EQImW58hV+E4+QVYdMmdHPpOZ7+4Keext+ZnKVgWwCk7AQAU9mzzSCLEDJ99fuNn7QtbXiA0soGSduiOJcPrCcMmTy5w4yfz2WoOS6FhVJXwBYB/iM6jV916lSdOvlcBiDwIgyZvP0oao5L1alTWtkgZSdI2Qmy504DkD13mqRtUXNcxAOOYPsBtIHzuYw2/HHBKAE8zwtN/3xbjztTToCxsbGe/zdXi4EMxEZmQW88MtQmwMRMQb//8p1rAFjJEwC4td/IVX4MbBZkrAD+qjcajTYnZgokD2qAC6N/AHDL+Q6AykMvBDYVHQrKREfXF3sG2nd2RqUVcVTbj+d5If81P+l4RL+ej0zgbq+1eUxQ2hVhEyflN37l6nV9verUufPeBZ0lpeMRvs9dgvIG1qkXgbWmihlquwIozuWNbVcYGQN6GV8JUHPcNuOm7ARVp86V8gbu9hoTMwVuVJYBSDza8pLU7IfGxgjjYoAyfmGhdF/jq4JMcfP33Tbjt3128XVjK2UjtyBV/XaOf3HrujCrOvU2AR57PK7fDxLGCpDPZSitbOjxX59egvHzWgwlAsCV8r37hpPPM2K1hLlRWdbbkKSh/yIGqMIraVskbatl/APUKvd7iLu91vYdQfIE45pxKvCq1f/126913ecXQQnhbq8xYiW4XfsiUCKEB2Xo++Xo+VyGqlPvMn7W/fzewBciRg8qZ4USAaD+977R21B4EMb3t5ynac9Mmm+eJ/T+l12fOzO817cQAygD06vFnpmQyWnowINwZ//fOnWLt3zBd3XhTwCW3x3ua3z/d338ABmVCHAIutCyP2IrmeCbl57ted/W7j47k7O6V5SOR9js8IKnpi4a3aoeyKT6HbzrVTF/GYBXQ6+wlfxWX1dCpOORtvNiHQvWF3UrQ2VSpp8TDGxiKhD3arQBXPzkYbYi10iPn2yJ9MOvXT2hXucFo+uLhOcvU5zL9w3ykoYeGMbzvNDS3t2eJ19qxS8/+URr1Y+f1GKk7ATPfPaVvm9ztahTT79HBOF8wJgJ+lPTTq/YmZwln8toATo9Yip7Fn/xBgTmgMbYnyb6x6o4qzp1inN5Go1GlxB+EYJ0PmxkFuQ3XjQabXY23mKxGACNRqPNK4LWhjCyF9QP1Xjzx49YLIb6U8YfsRKB+pFWIARQhVTnvq6EUNdUFzRIv5Qz/gGNytXr+jDmsL09iA90hE03vko7W8H1wWNHUJBHlARBEARBEARBEARBEARBEARBEARBEARBEIQj4B/NOz5mX1ITaAAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAERUlEQVR42u2bT4gbVRzHv7MGtikI3rNgscFhw87gKrtdL8VDqZCke2kqi40egtdawrJG6ooHZWFdarDgreTSHIrJYqlNqTcpiJERVierYcpUVtlAj0KhNdI2HrLvZTKJbtHd+l74fiAkM28Pj993fn/fLEAIIYQQQgghhBBCCCGEEEIIIYQQQgghhIwShg6bjMVineB1q9UyKMATNH4lEQUA1LfaAIDz9x6NjAiGLsYXBEUYBa+IqLqxO+eP46VPfhpq/Ob8Egq2CQCYseMAgEz6aEdHEQxdnv6g8S3blIYHgFK5Bss2sXoup50njOmwyd2Mn8um0HA9FFZKAwmbAuwRYeM7rg/H9ZHLpgBAWxHGdAg/gobrwXF9lMo1zNhxzNhxpI/NAgDSx2Zh2SYargd6wD6EHwDSwLlsShped5QUoNVqGad+vi+vwyUnACQSiaHf1y+vapWIla6CFg+O9QmQXCjI9dcf3AAAmNazAACv8Suy1R9ZBe01wa538upaLxS9eBZHTp/CM/asFIJV0BNg8ura0ET7QXOSo4j9DD/iOsjcoXH5e3k8CW9jXbsQFFF5cyL8xGKxzsuffy3vO66PBx+9hfpWG3OHxvF99jOgUoM5fRLAemdYUqcH/AsvEMavXrvZt+a4ft/1jB2H4/q4UqnB21hHcqEAa2dWBEDpEYWyHiCMX1gpDRi/4XoDIwlBcqGAzWoRm1Ug/nQ3RBVWSlg9l1NyWKd8Ehbdr/gEE3DYEwBgs1ocuOesnVW2QlI6B7RaLeP65dUO0Kv/b3s+Dptx6QVChCuVGjvh/cgDyYUCctkULNuUcf2250vvCBO1TmAqk8dUJg//bpsC/Bfji+RbKnef7m/ee7vPE4QIDdeDt7E+sMYydA/IZVNwXF8aP+190VsMOMDkwTE0zTg2q0VErRPaiKC0AJ13XoXx8Vfy+kj03t82YgAw517AIoD7jS/lPf9uW1ZDFOAxQw8AVBJRmNO/491yL7nm3+9OSIsfRgeML5u355/C4q2H/X3C0qfK9gIRFQ0fRDZU9gXUrTi+fe2VvvX6VhvN+SU5JxomjMqHNIaqhhcHMZHliwCAM8Zp1K3v+sJT8KxY5oKdiWnlz+6zNZXJK31GYPzfxh929Bg8BQOA/KUDqI/fwNwLz3XXf/hFrgmPCIsQWb6Ihuspf0CjhAeE33wLk790AMU3/uj+vvVbT6iAEKVyTTZp4hUV0cypXGgosbnwiGDY6Lk5v4RcNiXfATrz5vGhQojOWJd3hJQ9DwjfE02Z4/ry6QaA7e3tASEy6aPanAso2QcEjScmoo7r900/xd9MTEx0hBAiR+hERKfNiqc/KFBQCHP6JA6bca0E0OJMWNTxu8V1YXydDueVn4ZWr918rDfedkbXUjBdRDBUN/4/hZ/dEjiroD2uhkbpX5MIIYQQQgghhBBCCCGEEEIIIYQQQkabvwBWfhW7D5BMZgAAAABJRU5ErkJggg=="], "defend": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEIklEQVR42u2aX2hbVRzHv7cEYwTBZ5OHsQUuDb2XTclsX6awqWBSQZaJYEDIw/BllrDNyDb1YazQ1Qha9qCMiK6y2RQU2wzrU6loKilUbqbjwo30JcP3QUvGWHxIz+nNn2kh6ThnfD8Qwsk5gZPfN78/53cuQAghhBBCCCGEEEIIIYQQQgghhBBCCCGEPE4Yumw0HA43/eN6vW5QgEdo/GIsBABY3WgAAPKbDx4LEQydjC/wi6C7VwRU3tw/+Vfw/Kd/9jT+7dfPImebAIC4HQUApJJHmrqJYOj07/cb37JNaXgAKMyWYNkmps5ltPKEIV02+n/Gz6QTqDoucpOFroRNAQZEp/ErjoeK4yGTTgCAliIM6RJ+BFXHRcXxUJgtIW5HEbejSB47DABIHjsMyzZRdVzQA/Yg/ACQBs6kE9LwOqOsAPV63Tjx15Ycd5acABCLxXq+37wxpU0iVr4KOv3UUJsAr72Vk/NffnIKxhc13AnkAQDP3j+N8MUXWQUNGnHqrdfrxs0bUzIUzXzzMzaf+wXP2K1QdCeQZxX0KDxi+Mfpnon249vDbEXsZfgRY8HovmBbohbrGIIGHH4EY3PLGJtbRuDC1a7qaHRfEOah46yCBlkFCeMXYyHML650Hcr8IqylrwAAzEPHEQ6Hm+KlugAB1TdYjIWwlr6C+Pa44ng7m9/2hDWIhlwCPxRLyE0W5JqpcxmlG3TKCuA/CXcm3KrjwurohAq2qgu4Xl1A9OlWfshNFpQWYUh14wOQVY941VxPiuL3iF5UpieULk2VD0EixouGW8XxUHO9Nk8QIlz/6F0m4b1AJNyK4+HX8+8BQJsIgpA1jpFUFiOpLLy7DS0ECKgcfvz//sJsqWttzfVwwIy2iSA+04WALhvNpBMtD/gOSLrf70z48vOtewGErHHpHRRgQJTffAljc8sAgBdCmw89DWOjgWJ1QQ69uw1ZDVGAPnjnjS18sB2CRLcn+2GrVV2+FmwXY6OB4r2dnxU/+5nS98TahSDYV3HKeBur1u9ovv+qnP/KbiXn4Y3prjMDq6A+sb8NIpU80nXoMi4vwbi8JI0vKqYTT9wHAIyksspfzii5sc5KKL/5QHZCs9eexGrwJ4we3N+a/+Nv+b3CbKmtCtLhZky7bqg4D0QikVbcP7hfipFJJ3Dp4gQs29TqWlLZXtBvL0dlV7O8XmuW12vNz79ekl1OMedHrCuv17TohmpxKS+6m519H3FNGYlEenrE/OKK8teTSocgfwgRxu9VUorxyTMzOHlmpksICtAnopTcTT1fcz0cHZ+A8Aom4T7zwPziyq6fdhMV0AEz2vb4CgXow/hA69JFXMD8F6L8tGwTlm1q8YiK8g9mPSwn7Gb9br5DCCGEEEIIIYQQQgghhBBCCCGEEEL2gn8BnE8Wx4ULMa8AAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEQElEQVR42u2aT2gUVxzHv7NsicnJcycHaQPDBmcoyGq8pD1IC8kiHjYScE+L9qYSttstqW0PLcImXcFIDhVZESMYjRRKI81NBDHtFCyz1DAwKR52pMdiIRKwTg+zbzK7syYVVn2vfD+XMH9YJt/vvN+/eQAhhBBCCCGEEEIIIYQQQgghhBBCCCGEEEJIz9BUelhd14P4se/7Gg14jeLfHO4HAKw+2gQA1DaeK2+Cppr4grgJKq+KtOwP+GftQ+w793tX8dcOl1GxDABA1hoCAORzo4FKJmiqvf1x8U3LiIQHgPrCMkzLQHW6qMxKSKm0XHcSv1gYR8NxUTlbTyRsGtAjOsW3HQ+246FYGAcA5UxIqRR+BA3Hhe14qC8sI2sNIWsNIXdoPwAgd2g/TMtAw3HBFfAKwg+ASOBiYTwSXlWkNsD3fW3i4dPouLPkBIDh4eGuf29fryqRiJWogkoDqTYDxiYr0fWL356E9t06HqdrAIC3n5Wgf/0+fN/X4jlAVjOUMSDe9eq6HoxNVmC2eoDjmccAgL+cXwAAS28dQXW6iPg9spamylVBwpDMD7NdE+1Xa5lolZiWAXv2NOzZ0xibrEhZFWmqhR9xLBjZ09eWqGsbz9vEF3h/b2Jvfkq63KCpEn5EOarNrET1/7NvjidMuGydSogvDAAgnQkpWYUXPcDInr6E+PGmLF6i/lqYV64MTcsofrfJZ/rMJWRbx7bjbf0DZy6F4iMcyKnSgElpwHZj505hG44bVTjxmRBXQI/Ej3e+AMKqB+XoeN31oq7YdjxlTUipID4AHLxxB8XCOEzLwJPF+baVIMKSCE0Nx0W2fJ4G9Ep8kWxtx8O9z08lVkE8PIlzXAE9Eh8IR8z1heWuCTZuQnW6GJ3rtgpk7AOk/iQpmq+llgm24+HeYngt536/dWPLl8xACrUHt8JTDwCggmz5fKInYBL+j8KLgdr9ox/g4I070fUD/Rsv7IZLrW7Y933t9vVqIEzY5bhSTkjf+MN0bjfp3Gqi63rgHNvEZ/98CQB4sjiPA/0bmPoiHFPfv7o78Zvx35F9IpqW7c1/kUgiBMGaw0ntGFbNnxF8+lHbPZetMEFnHs1CZtGlqoI6P7p0u25d60M+N5qo9bWZFWgzK5h4+BTx31g7XEZpIKXEN2Fp3g5d17fdzyMGc1NXd2G17yeMvPdOGG5++yO6p76wjHXXw5GJ8AO9CttTpAlBLyOU7XjI50bRbDbbjBA7I+KzIo4ierQ6KmfryFpDuBATd3BwEAASRqg0ltBUMkDQGVpErG82m1uVUCs05XOj/4td1G9U/BOlueBEaS6Yu7ISbJdYxb1xZE/EadnFX/rxLmzHi0YNO73N666Hjz+5wFlQr8QHwnm/mP3vxLtGGP9Ny4BpGdJvUZT+m/DLVkrdxGYOIIQQQgghhBBCCCGEEEIIIYQQQgh53fwLpplFwkT9wQkAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEeklEQVR42u2bT2jbVhzHvzKGrLnvJB1CYvASIhEYztIdSg9lBTuMHewSaGBges1KCJmh224jxUsyyGGHjeFdfEjX5BLisN6G2dYMMxoU1iGQRw5SGey2joRAqXewn/okK+tayvwUvh8wsRzbiO/3/f49yQAhhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIOS9oKp+crusd+dj3fY0G/I/i3524AADYPzoFAKwfPz13Jmiqiy+QTThPUZFW7YT+WH8Hb37+a6z4v727jIqVBQDkrAwAoDh7qZNkEzTVV78svmllA+EBoFZvwLSyqN4qJzYSUiqf3PPEL88XcGg7qKzU+go2DXhFRMVv2S5atovyfAEA/tWEJJiSUjn9CA5tBy3bRa3eQM7KIGdlMHtlGgAwe2UappXFoe2ERNd1veN5nvImpFRPPwACgcvzhUD4OCortSASPM9jF/Si+L6vlfAsCtaPnyIfec/ExETf30PbgWll0Vq9CQAQ4huGoXxxTqu++vc2qwAqQeFtNpvQvmzj0fuTwC9reGO6FBIfAN4eGcVkcZFt6MvWgaXhVGjq1XW9k5+rwOzNADfGHwEAbt553Cc+ALiPuwZOFhd7BkLZ4S2NhDC+s4pDLAcm/FfiaoFhGMoMb2kVV/9Zr43vrOLJDnAwMtT9p/XBmd/109Hvsa+rVhfSqggvH4v9HtGWap/dC2aAJ5/ewP7RKWaECc/BMAyl947SKggf7f3vykWqJ748mI3vrHYLtXX2d8uFWOVOKD1I8eOGLrkDSn/8NXK95y3bDb0OAGZvSMstb/QV4qSQVkV8WXh5Ao4em5Hd0Oh7ZL5aWwDWFmAYRkfVSFBiEo4TP+h8bCd4tB03EFxEhNgLyi1vhD47WVwM8r/neVB1W0LpzbiL336P8nwBppXFX3e+6IsMsTG3t1mNNUEUYdkI1UwYSAqK23KIkp+r4GJP5B8/6rabrx/cQxvAWDYTSkfyxJxb3sBrtoO9zWoo5aiahgZ6MqIWlB6ehKberd0mavUGAIRWPgD8OXUV6Jkgi+/7viav7qRcoBn4Seq6HppKhQGIrH7BWxeOY79HRFHSrowNvAZEBfN9XyvOXgqOf+j8HTyi4s+MDAWPpeEUloZTibsyplwR1nW9Y18/Ra3eCLWY3u1TLH5yEhI/agaAxJmg7GZceb6Alu3CtGpY0K5j3/wZ969djhX/G7EnZAFtxwUebCcmApS9LwgAtnabaNluYICg82G3EJceniA/Vwl9VnRGSblTQvlbE73tYewPfYeZqdHu0HbwbJdTrhX5uQrajov3SoVEGZBKQpjev3Y5EH5majQwY2u3CdEx7W1WQ60pU9ArjILKSi04rt4qhy6yRCNCpKToIEYDXlJ8Iah8B5yoEXFG1OqNbiEG4DzYVt4E5VOQ2AuSW1Lf9zXf9zV5n0ekprbjYiybwVg2g/xcRfmWVOnb00V+F1PxWYVVFlmOGDltqRoJ5+4HGnEr/jz+sIMQQgghhBBCCCGEEEIIIYQQQgghRG3+ARHHQBUnAxEuAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAESElEQVR42u2bT2gUZxjGnwkLktx7mjkUszBkcYdAiSYX8SAWsqF4SCTgnhavNhSxW7S0h0pgSdNSoYeWsl5yiDG5hCToLQSKW+ZgmKCyMCk57EiheKmgLFjjYf3Gb/4km6Zi3l2fH4Rkd5YwPM/3vf++WYAQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEdAuG5JszTXNXfx0EgUED3qP4d3K9AIDaThMAMPv8VdeZYEgXX6Gb0E27IiPthv6aPYdPfniYKv7jz66i7NgAgCEnCwAYHzu928kmGNJXvy5+3rFD4QGgOreKvGOjcq3UdieYpinSqB7Jq6Od+KViAVteHeXpaiJhx8VvNBr7foYG7EFcfNfz4Xo+SsUCALQ1QYkvlR7J4Uex5dXhej6qc6sYcrIYcrIYO3sSADB29iTyjo0tr54oXXXxLcsCQ9Ahwg+AUOBSsRAKn0Z5uhrZCUEQGJZliRVfnAFBEBgTj16Er+MlJwDkcrnE7y2vjrxjw52ZgjszhdHJcsQEyVWSyCroSl9PxIDRyXJ4/dfvL8P4ZRtPMrMAgG8fD4TiK/xnTZwY/wJr8xXxfYJYA/Su1zTN3dHJMvJveoBLA08AAFO3nyXEVwYASJig5wcpxoivghQDyzNhoj2ssY1GA+pHSkmakRp+0t4bWJ7By2Vg8+NjrYvO5/9JfIWkpJyRuNrjQ7eRhfWwB3h54xJqO00MKxMOmNwtyxIXfkRWQfHYv7iykWjM4mXqQf+3xIpI3A7QxS9PV8P3Xc9/e9Nf/9bqD940aUNXf0ok4k7hSA3YLxHeyfXiVizpqnofeDsN/T+J+YMtQ5XwaWOHeDesQg4AbNd99NvZhAlqKqp2QVofoDdmH3QnrOY9+4lf22mittPEyMI6SsUC8o6Nf27/HNkJKiy5no+1+UoYitqVoNImomKSsBJdH0ErkX+/3io3P9q8h+26nxp6dBPiq1/NhACIM+HIQlDaoYtedlbnVgEgsvIB4O/BTwEA/XY2In4QBEa7TldiGDpSA/TBGwCohkuv+9XqV5zqfb5n7yAxxoudBaUdEaoVeqWvByML6wkD4uLrzVinPjkhchjnXWziq3+/iYSg+emnAIAfv+tNiN/JJmSk3lipWGg1X85NXDYuopb/A/cvnEkV/5aaCTmtUhUPlhiC3kWfsLiyAdfzQwMUu1+2EvHEoxeRswIAYY9wkCclaMABjGgs9aF27C6GB4+3wszmn+H18bHT4d+jk2Vs132cnyh0lAEdcR5w/8KZUPjhweOhGYsrG1DDurX5SqQ0ZQh6h7tAH8pVrpWgz/bjO0KFpE44juyIEKQE1Z+AUzkizYjq3GrYLdcfLIk3QXwIUrMgffSg5vrqkRM9NKmBXb+djTwdwR1wiNWvH8a4nr9nYtVF1neMHrak7oSu+4JG2orvxi92EEIIIYQQQgghhBBCCCGEEEIIIYTI5jXEZndAzdNBHQAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAERUlEQVR42u2aQUgcZxiGnxUh1XsvnT2UuLC4dBehmMZL2kOooBIa0GKpELr0VIiliN2SNO0hIGysDWnaQ0tRKB62ai6iUnsSodR0C5WxrWxZSw67IRAKJQVFSLM96Iwzs8uqjTT/2Pe5yO7OyPC9//d+3/f/A0IIIYQQQgghhBBCCCGEEEIIIYQQQgghhBDiuBAx/QEty6p4P5fL5YgE+A+DP51oAmDlzjYAY5uPjpUIkTAE38ErwnHJikYTH+re2Ms8//EvNYO/fm6YTCoOQHsqBkBvz5nKQUSwLKtimliRMKx+b/CTqbgbeIDxyXmSqTjZS+m6mWBZVqVUKhGNRo3KmAbTU3S/4KcHulmzC2RGxqsKdtCmTAt+KDJg5c52VfDzdtFnQYfJBNNoMN1+HNbsAnm7yPjkPO2pGO2pGD1nTwHQc/YUyVScNbsQuiLcEAb7AdwApwe63cDXE7GeHakLqkO5XI70sZcFY5uP6Apck0gkav5dyGXp6s+Q3O2SspfSFdPtyNgaMNTc4Ov5u/oz7u9ffHSRyOcb3G0cA+CZh0NYV190g58ffRuApzrfYiGXNbomGC2Ad+q1LKviXd1vtt4F4E/7BwA+XG/1BR+g+Nc2z/W+U1MEU2YC49tQL62zozULba3gO/w8c52u/oyvRXVmAhPqRKPJ9lPru9bZUR7OwuqzJ/YuSLUe6v+bNJAZmwHBTbeOqSU6ppZofP/Lqg7psEXepIHMOAHK5XIk6P0zc8u+a9bPDT+2CGpDDxAgy7IqmZFx93tnAgbcTPgRIIQDmNECBCfg4OdkYDe0PRXbmZCHb9QsxBLgMXjD/oQJBt3PG4WiOxnn7aJvPyiMPFEv9LaBtfr06UQTkWuLrv18d3mQ+22dtMRjrgjBTPG2o/XmgP99BgQ33frw9+TTiSYmUoOkPcEHeHp1kQ2gJR7z2dFCLrt7Z2ZfKzLpYCZiigBVD3ZtkfHJeQAefP2Z77f7bZ2wK4KDs8q9E/OaXaha/abNAUYLQGD1A7zQtLnv7FDP2pQBdUQI9vUdU0s+AYLBP+2ZhsP61sQTf1BntQa3Hy6c3+K9vz/wWVBu5A8Arl9t8gU/zCIY85BBIS6c3+K31267w9fFyOusJG/z/asvVQV/IuVvUws/3ZIAR9GaDjU3uDbkCOBQebeTvl+3fOcE3tY0LGfDxr8ZB1C61czKiW843XZyx2pWf3ev6e05A+wc2GwUirzS1x0qAYw+DwgG8OZX3+4U37aTrhgzc8vMzC2zkMv62lJtRRwhNwufAju1IBqNAlAqlXwZ4eyYOrODuqAjsiDH44Pv/Lj2VCrtdUG71nT5yg2AUBRj4zMgPdBN3i5W7Yo6gY1Go5VgRjhW1BLPsJDLVnQo/y9Xv/cgJm8X6xZWJyO8GeNgckEORRdUb1thv3sOep8QQgghhBBCCCGEEEIIIYQQQgghhDhK/gHreUg3+SyfwwAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEQklEQVR42u2bUWgcRRjH/xsjMX0RigXx7qHYgzXBXQxybfNihZYWclGqthLxUDx8jUco8aTVCoYGrvEsrfigyBU0D9cYEaQJjU+hoF5dIWVPLWe30ofbYAupRSEl0no+XGa6t7ekliYyE/4/CJfZzcPw/983833fTABCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYSQVcPQYZKxWKweHPu+b9CA/1H8L7o7AQDly0sAgMLiP+vGBEMX8QVBE9ZDVLSrOrHfC7vx5Ac/R4p/4dlh5GwTAJC0EwCAff1P1XU0wdDl2x8U37JNKTwAFMenYNkm8gcz2kVCmw6TvJP4mXQKFbeK3GixZcOmAatEWHzH9eC4HjLpFABoa0KbDsuPoOJW4bgeiuNTSNoJJO0E+ndtBQD079oKyzZRcatgBKzB8gNACpxJp6TwuqOkAb7vG/t/uSHH4ZQTALq7uyM/p0t5rTZipbOgAxvamgzoG8jJ95+8Pwjj40uYby8AAB65eQCxkR3wfd8I7gGqm6G8AcGqNxaL1fsGcrCWa4DXu+YBANfdHwAAk/fvRf5gBsG/UT011SYLEnR9PRa50b57oUtGiWWbcMaycMay6BvIKZ0VGTosP2JZEc8E2zd3NG3WIlV1xrLyuffXEh7fN6Ts3qB0BISbbr0Ts+idmEX725+2ZEhR4gt+mjymbCQomwWF1/7J02dbCrOwCTqibDMuKH5utCifO653e/LLkfAjAGhWgClvQLgCDo+tUDe0QgPWjtfcEziJN+T4UtWTlbHjek3NOVbCa5GqHZ1BJp2CZZv489RHLZHhuJ5sUySHj9OA1UxHRfXruB6+PdSIgk3nZ2QU6Lr0CO5TWfzJ02cx517EnHsR3on3mt4vPpzAHwvXsPGhjbh6ZQFXryxgupTHg5seQ8/zacx/dwYAcO3vW0rXAe2qii9+z6RTjW//qdvvt3UuAtWvGoNAAHRtaEOhlAeQQ3L4eGRNwEr4PwgfPAswjs40LT/bOhdXrIZFASdaEhW3qnSH1FBVeAAwe67jrVuHAUBuvqXRBQDAsZHOJvGDJuh0Y8JQQfyo06/y5SW8+twN/PrSOVl8DRovo2ydw/cvPt0i/km7ESHTpTzCXVQuQXdhQlRroXdiFo7rSQME9Tf3yCZcEJ0OZZSZZLhRFu58Dn3+AModZ7D9iUcbRp3/Tb4rjk/JAm3v/sYhvS5XVJTJgsJiFUKGDC1/fvjZNxh8ZXeTEeJmxKF39CrClG5FhJtx5Y6E3Avi8TgAoFarNRlxZCQrizYasMoIUYNLSzwer0cZoVNvSPnLuaIVsdLVQ7F/1Go1+WznM1lU575Ufh9QPgJEJbxSzycYEWbPC9hiJpZ/cpgu5es8lL+HXhDQ6PmL/v+d2GImZMRYtqn8VUXll6C7rWijxF5P/1FDCCGEEEIIIYQQQgghhBBCCCGEEKIH/wICfBsTo8Bi9AAAAABJRU5ErkJggg=="], "death": ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAENUlEQVR42u2aT2gcVRzHP7tEYgTRi6cNGprFIcEZWiQ1RSg5BA9JFEOTEHRBWIo3I0HLSlQ8KEIaYlCpJ0kQc5AmEIlZaW6lIIluD3VWWwYmpWJWeqwUEiOh8bA7k9nNRlvdyhv4fmDZzNsZePl93/v9ewNCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQDSMRp8mmUqm96HWpVEpIgP/R+AudLQCs39gBYHrrTuxFSMTN+AFREeK8K5pMn+DN6ed4+qOf6xr/2gtnyDkWAF1OGoChgZN7cRIhEbfVHzW+7Vih4QFm5/PYjsXkRDY2OyEZp+36T8bPZvopuh65D2cPBGwJ0CBqjV9wfQquTzbTDxA7EZJxcj8BRdej4PrMzufpctJ0OWkGeo8DMNB7HNuxKLoe2gH3wf0AoYGzmf7Q8HHFaAFKpVJi+Op2eF2bcgJ0dnbW/f72q8lYBOJYZEFvPJSsEqBvNBf+/tLuBQAs+wkAvOIvZBZ/jE0WFBsBprfuEI0Hc84YdqUGON3xGwC33B8AWHzgxdikorGJAbW1QMfyVN1A+961DrUi7of76W5rJnF2NUw9dz84HY5HhQnclAqxBhI1frQeqM2OutuasY6dUhbUyBqgu62Zy5lz4XjB9Q9NUaP3pVKpveBjsgBNcVgltb4+uG565/N9X+qkoSJO32guDNAAkxNZYxt0CZNXfzjJs6vMzuer7rFruqDB7ii6Hj8tzgCQfrgcH7rOfGxsVmR8DJhzxsIej+1YbHg+G54f7oJalxQYP0ph6nVje0NJ01d/NtPP7Hw+3AGPXVk94IqChtzXC3la7OcVhBtNsPq/e3ssHNvw/LrxAeCpoXEA/Ns7xv9vTSavfoC1kR5OnL9YNTbgLZX/qNh+d7nygzUYivP7ozaP3CpKgP/KK4PbvBUJwM+0bDH+brlBN/N+S1UhhrfEijXIzV9v8GxvL9DLH6ufSYBGuKCC64PzCa8lXmbd/p61kZ5q4wdVcUWEDc+n3Urj394JsyHFgH/BF0stB9JNgBPnL1ZVx3POWJgxbRe/qYoTJqehxkzosNOvaKU7/uWDrDdfoPvokfL4levhPdE6oWN5ioU/m6qCsqnnA7HphgZNtrWRHmaefLzsco4eCcXIZvrDc+GVSjA23fix2QHDV7dZXLnE2khPeCg/OZEFYHNzc3+nRHZEUBWbfjJm1MQOEyEQIHA1UaMG1W09IYYGThrfljZucoFBo0Jczpyjy0lTcP1Dg2k9IVpbW40XwLg0NDDYMPt9mxz129C1z6VSqb1X3/wUiM+hvLFBuFQqJQIDBu2Gu00lNzwf69gpvZjVCHe0uHLpnl60CgqwditN32jOeBGSphs/KMKiByx/R7tVLthsx8J2LONfUTT+UL5efLiXZ+72OSGEEEIIIYQQQgghhBBCCCGEEEII0Uj+AuA8/tMC1F+oAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEKUlEQVR42u2aT2gcVRzHv7NEQgNiPU/A0i4OGzpDe0hJKZQeFoTsGlpMpOqeluitSolroAgFkZYYFrFF8VBWxBxKE6jEbGluxUtWV4jOSJeBjVRwPFeETSMh28Pue5nOzrQRF/te+X4umeXNQvh+3/v9ewsQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEkGcFQ7d/2DTNdvhzEAQGDfgfxV8c2QcAqN3bAgCUWztam2DoKL4gbIKup8LQXfzGRAm2YwEARp00AGAyf1IbE1I6Htuo+KNOWopfWahi9lKlJ1fQgD7t/jjxBZWFKoqFHDzX18YEQycDksSvu81HQpAww3YszF0oKh2OUjrt/nDC9VwfdbeJykJVhqB89hgAIJ89Btux4Lk+Q1C/475ACFws5KTwOqK0AUEQGFN3N3t2f5SRkZHYv7euzylfDWmRA2aGUj0GjJ+dlc9vbt8GAFj2SwAA3/sdhaVftChFtTGg3NpBNB985bwre4DpzJ8AgPvujwCApedOK5+AtUjC4jmuEcssz8cm2ouNDEcR/aqARPIdOzCI2r0tHL9xR5ae2x9Py7WwMSJU6RCCUioKnzR6EOILGhOlngpp7MAgrKOvsQr6L7s+Kj4ADHx4TT6LxiuuTP2p8HmPmSp3xAOqjxwE0VgvPoeNMZw00DVn/OysTNAAMHeh2FYxJBk6iB8NOeFmLDqCqLtNeK6PX5c+BQCkn+/kh9HSZ0pWRSkdxG9MlNCYKKFYyMF2LNiOhQ2/KU9BNCQJ8cPU599TckCXUkn8JIqFHIqFHCoLVQCQ1U84FNXdJupuE98uVrHPfpVJuF/iA8Da66ekEWE2/GZsfgCAw5PnAQDNv7eUNmBAJfGTYr8w4fiNO/BcHxkAef9mZ6Gr/fZy90XrjDTnr/02Xrjv0YC9IhooMfuJIi5c6t3ke854q2PON/t3X+oac23oKE5kswCyeLD6BUNQmOiUM7qWNPXMLM/LqidW/FBXPN1alyFK5TD0VEsyUZGIcDR1d1OWiWItehrKrR38cbkjaM3+AQDQ/uAVAJ3hXNislW442vS+wxsffalkGfpUQ5AQYwodscPiiOdypGycGUoBL7+I2uBtjB05iNrPv8H4ZBWT+ZMYd3bfW7HOIO/fxOI/A4mJmn1ASOyknRleW1r5vqcyGjtyEGLt1vU5mYBPT+Vkl3x48ryylzNa/izlncVzKLd2MDw83GNCXDmq8s2YFgaYptmevVSRsx8haBAERtSEYiGHQ9buaEL1a0mtTkDcFDTJBM/1eSPWr90fvv+NEzXJBNIH8dfWN9pXvl5tvz1z5YlzfdM024K19Y09fYcn4DFiiqQ66qQfme0/NkG/f1WeBNuxlP+JoqH6CYjrG/7Nd/b6PUIIIYQQQgghhBBCCCGEEEIIIYQQ0k8eArH5IutwkbvNAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAEG0lEQVR42u2aT2gcVRzHv7OuhAiC9zkY4sKQ2BniIe32EnoICN01BNyUKutlidJDYwk13VJqBS2hMYZgRA8iK4UUxa4ooZHGU+kl267QdjYaRiclHsazRUgbiBkPmzednd3ESQnxPfl+IOybycwmfL/zfn/eG4AQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEL+D2iq/cO6rvvhY8/zNBqwj8Jf7W4HAFRW1wEAU2ubSpugqSK+ED5M2ARVZ4WmuvjLA2MwLQMA0GulAAC5bJ8yJiRUnLZR8XutVCB+aXYexfFSU66gAXv09LcSX1CanUchn0HNdpQxQVPJgMrqOqbWNnH0eLFB/KrtNoQgYYZpGZg4V5A6HCVUE19Qsx1UbRel2fkgBGX7DwIAsv0HYVoGarbDELSXMT+MELiQzwTCq0hCxidfxO6hXx4G53eq97u7u1t+/vD1hPTVkCaL6GK8XdING6Drun/0eDG45vWN6wAAw3weAODUfke+fE+JUlSTQfhWdX4rwjMCQJCMAWC46w8AwJ/2bQBA+elB6RMwACRlbbDCpDvammZHZXUdmJtEDY8bMcF7y10wLXbCT1Tf74QwQvtwISg/Ny4OB+ej1ZIKISihivjiOiG+YHlgrOH+dEcbjJdeZRW01+IDQPL8F8FYNF/R7/kp/2lTRSVzR5z8L//4bsQXzVf02LQMwKobo1kpYMuYcIIGgIlzBV/GkJSEQkS720tPvQ/8DPz62q2G614wUlgqT2OpDKSereeH4nhJShP2NQR5nqdFm6voWn4cE0zLwIrj4uzfF3DlxStN4WipPN10X3XylJQLdPuehKMmeJ6nxTVBLLbVbAeDQ5mG81XbRdV28f3VebSbrzAJxzFBhIM4JkytbWLx2JFg/UeYIT5HjJMYMU4G1x/IjQIA3L/WacB2JkSP45hQyNef/MVjR9A1N4l07RDStUOotF3H9BuPkHW+AwCsOC4ePGdKPwOkSsKe52lTWzH69DOJBuGFYblsny9+N/ruQ1TMegJO93TCFw3ZlgnLA2MA+vFo4TPOgN2YIGaD+NmpcvHPvByMD//4W0PH3DU3KX0YkrYMjVMuTn/QjnTHVk9x9z7SPZ340nq7HoLaXAwOZWACWCoDvWMfS7k4p9SmvK7rfjg0CXLZvmD8+UcjsZo4GvAE4hfHS03rQOGStnL3fjAWZepXF07gQG5U2s0ZTTXxNy4O4/A3N4InP7xJU752E+meTgDAW+98Etwv885YUgXxw7tfYkFuu5evRC5YcVw4d76NnU/INuLPXF7wZy4v+G+envH/bXVT13V/8c6KLxD3sBHbAwr5DMrXbsZ6okUuMC1D+he0lHg3dDflaSuxGYIIIYQQQgghhBBCCCGEEEIIIYQQQvabfwA6bhjSXMA1UgAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADiElEQVR42u3a30tTYRgH8O+R5TDoL9hFUqOx4XanzpsI8iqHeOG6kN00JLoqJEQQf1wUgsiCkO5k3WiK80pSJAq6U7SL3EJZrCjodFsgKIvhuth5T+85nrOsLN8T3w+Mcc42cM/zvs/zvu8EiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiLxM8/IfHwgEqvK1rusaE/APg5+LNAEANj6UAQCZ/UPPJUHzevAFOQlemhXa/xT83e5BRGMhAEBrLAgA6E1cVjoJDV5vYvbgt8aCZvCzsysYmsge6RVMwAmNfqfgC9nZFaRTXSjki0onQVMlsMep206N1x78rXzJUoJEMqKxECaH08qVI58KgbfX9CRq9+VgOdX+zP4hrgEo5IuA8ZxOdQEAEp1tePp8E4nONow/eGK+hyXIFlB7UEVCcpEm17IhRr8QjYXM4Cc62zzVwxpOM/g/I5IQCASquq5ryZ0Dy+h3EolEHJ9XFyaVXA1pp50A+2gW4s1+a1kygn/3bIMlAblIEx7Hbpvv66usAQBC0fMAgGLhI1JL28ouRTUVg18vEW4lSd4D9Ic/AwC+5jcBAEtnepRswKfaA5I7B8jsH7qWEjm4bomSXwsvTzk22vHdMI8inGaBfYUjSssvLeFGZszl5vr1K46zRpQuVUvQqcwAezB0Xdd+NhPsdrsHLdcdiy+PrJJepR5Zkq7iZkypUSECdJzZ4HTuIzZh4t5WvoRCvmi+D4ByvUDJaSmP1HrJkJMgNmL2XfH82C0AQPBcrSy1Dj5UKglKngXpuq6JR73SJDZg4iGScGm+3fUzW1N3lDob8kFxuq5rGZcmLUa6vPqJxkKYwxwqRlNONgK5b+p+TU+chtabCaLsyKVIPogTSntlJuCkkyBOOeXfAOzB943MINlYUfZ7+eAhohyJ5hxenkJlGVg3Xr/R7Ee8PA28/YL4KHB1sQ89RhJgNGMm4IT2EPa+EG/2o+Oehg3/GhCt3XuBdkxXu8yVUGmvbK6GmIA/WJq6WR+touPZBWy8fg8AuLk9hjdL1pGv2jLU55XgD01kLZuqyv1+x/OlT9L1u2LJsWmzCf9G8OV1v9OGTP6tQLgYCqKld8C8bukdUO53AU/MAHGsMDmcBgCsLtSasDj/yRj/emIvUz+WpgPG59T7UUbzSgmSG7C9J7jdd2vgRERERERERERERERERERERPS3fQfsi73xFq2Y9wAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADy0lEQVR42u3a4WsbdRzH8ffFuLKB+AdEcGggNFvuiWQ2T2QPhg9MkYnNEMkTQ5E9EsoYhTEnuDEsowORgg9GfbLiSPtodGNPhOKTBTPQXXQjckqFnfjMwaAjEKwP6l3vrjm3pmp+J5/Xk3LJJRzf7/1+3+99UxAREREREREREREREREREREREREREREREZE9sdJ88blcbjN87HmepQT8h8FfLu4HoLXeA2B+44/UJcFKe/B94SSkaVVk0xb83+Zf55XLPwwM/v03TzNrFwAo23kApiZf2zQ5CVba7/5w8Et2IQg8wOLVG5TsAnNnGsauhEyai/CTgt+oV+k4XWYvLu4o2ErAPyQe/Lbj0nZcGvUqgPFJyKR5+/F1nC5tx2Xx6g3Kdp6ynWfy2BEAJo8doWQX6DhdtAL+he0HCALcqFeDwKdFZpR38263BM/zrNq9x8FxvOUEKBaLA//evDZnZCG2Rr2V+AF92uDkcrnNUwcykQS88c5s8P67/VsAFEovAtDt/EJ95a6xXZA1yuCHPU0i/BVz6kAmCP5ycT+t9V5QjAGmx38F4KHzDQArzx43thXNmhB8P5AANbaC7HmeFd+iwp9djtWC8euX6LCdBN9H98cp2RpFDNxCJg6OJZ5Xu/eYpGT57tQXgvbz9omjwevh793tFve/L8Ke51n+9tFa70W6maS7Pd79tNZ7fGF/EHm90lzb0SHdqS8YPw8aySzI8zxrPrQSwkmIr4qkBPnajhusguzZK9tL286D40Zqh4nJGOnFhIvqXp6Cww9k/hOwn5yO042cY1oxNuJCwnfobpKRPXsl8oRbik1C247Ll+dOApB/bmtllU9/alQSjNsbd7MqKs214C4P++SZj1k6tMTnlxd4/mEnkgDTkmDcKMLzPCtcqJ8kvsWU7AJLh5boX5hmeuNbavv6GkXstVtK4o+cy3Y+koTwWHq18Ba1fX3cRz0lYNgkJCVi/PqloP/3V0I8+Mdr1Uh3pDZ0iCQAzA8Y3Pl14vaJo7x3cAwcmDhvwY+/M/EhrDYxXmp+E44XzEGT1Mp5i9bYLShtHX/Fq3y2WQ06IfdRL1KMlYAhW9WkLumFtzd48OAlWt/9DMD7d8/x/crJyDmmtaHZtAR/9uJipOPpX5iOPA/UzjR2fO6nrjuwa1IRHiL4fosZDmCluUaluZYY1JcLeQ5PzQTHh6dmjPthJhUroGznaTsuc3/d5Tevwcrq18H7flDj29R2azoTOU+zoCH3/3DwkgZsf/czZxr/d1REREREREREREREREREREQknf4Eq7rIo6mJkgMAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADtElEQVR42u3ZwWscZRjH8e/ElaUF/4IIBl0YsnbnIls3F+mh9NAN0mK2iOzFpUhPSpCyEGqFVkJD2IJIoYeyvbS0bPcU0tKLELwkuAp2Vi0rq1ToiAdBpRAJlMSDeaezs7Op29TuDP4+l8xuJhCeZ973eZ53QERERERERERERERERERERERERERERERERHbFSvI/Pz4+vhX87HmepQQ8w+DfyO4BYO3eBgC19c3EJcFKevCNYBKStCpSSQv+r7VDvHb+u8jg333zJFXHBiDvZACYmX5jK85JsJL+9AeDn3NsP/AA9Ss3yTk2C3OV2K6EsSQX4ccFv1Iu0nY7VOfrfQVbCXhKwsFvuV1abpdKuQgQ+ySMJXn7Mdpuh5bbpX7lJnknQ97JMH1wPwDTB/eTc2zabgetgP9g+wH8AFfKRT/wSZGoBHieZ5W+/8v/HG45AbLZbOTPW9cXYlmIE9kFfbh3rCcBh9+u+r9/5+FtAOzcSwB02j9Tbt6JbReU2ATU1jcJTsKmGAMcn/wFgD/cLwFoPn8ktq1o4oqwuQ4fQ0wuLUYW2o/vTuoo4t8EdKdjA3PfjeweP+CFiTRflS/47efqsQP+/YWJtH9takZct6DUKAMfbilLRPfp4fsKE2kuO++TC3w31Vjxk7B2b8NPEDGegkeSgEG9fFSgd2xBHfzBy6yC1KlLj5a2kwG3qzb0ca3kMH1/sPcP7vlm+m27HX8QS4qRbEGe51klBq+EQQNXWHjCzTl2z4pIgpEX4agk7BT0nqdne8sJdz/nnjvD1VevcvH8Bf787evIB0AJCBVkM1wNY6qx4h85m0SY64efHPfvC84IQKxmgpG/kDGBqAUm3J0Ejx8Obx85mzpg5J0Mq9vXy/ZRppcWudZMkXnhn/a0Ol9nYa4Sixc1sRnEPM+zauubkec7JvDmna8J3OTSot96mqc/uP8v20c5Uir2dEcArcUPYnM8HatXksHVMMy+vXrsAO9OpMGFwlkLfvidwkew3FAXtKtEDF0TzlqspW9jJrTPeZ3PtopcO30CgO6DDX8bUgJ2eWwRVS9efGud+/dfZu2bnwB4785pvm2e6Lsvf/LT2BTiVFKCX52vD+xyUqcuUZqr9P3dj53+Sbj7YIP8/3kSftLgRw1eU40VphorA183vmJn2Dcz2/PdvplZtaHDyjsZWm6Xhe2n/NZ1aC5/4f/evO0Kb1OPev/Zvns1iD3B/h8MXDDYg75/mgVeRERERERERERERERERERERIbxN3wXvPaucAEcAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADj0lEQVR42u3aP2gbZxzG8e8ZgXEg0P2GGiIiJNANLf6jJQQSOlSmpBCVkmoSndshBIEJdEgxCOOEUAwdgroEUmxNxilZCiZLDcrQntwElWtxwQfdOhQcDMHuoLznV7Ks0Nau34PnA8Y6Wxj7+d37e/+cQURERERERERERERERERERERERERERERERP4TL82/vO/7B/Z1HMeeCvA/hr9amABgc3sPgKXd/dQVwUt7+IZdhDSNikzawv9j6T3evfvz0PBffHCLepADYCrIAnB97tKBy0Xw0n732+EXg1wSPEDz4WOKQY7GfM3ZkTCW5kn4TeHXqmU6YZf6QvPIhK0CnJDB8NthRDuMqFXLAM4XYSzN7cfohF3aYUTz4WOmgixTQZa5q9MAzF2dphjk6IRdNAJOof0AScC1ajkJPi1SVYA4jr3K85fJ9eCSE6BQKAz9/N23DScn4lSugm6eG+srwPsf15Pv33j1BIBc8W0Aup3fqbZ+0iropJnwVwsT5NcWD1vRO58z80mFt4LppBBaBZ2C1cIEq4WJZC7Iry0OnWi/eJHXUcRptJ/ZyXGeVZeT5ecPH11O3jc7OZ68NnOGWtAJmp0c55vgs76vlVY2jqyQnlWXnQ4fUnIWZPr3sD1AO4ySUZC5/eBwaAdZCCPn/7aMSwGP6veDe4D89iIdervg9uugzV4gTTIuhD/szv4nGzD72h4R2oidYvh26PaRRCfscvHRDO0w4uu7y84XwEtDAYYFbyZec+RsCmBev/ry0749g1ZB/8Lm9t6x4cPhkfNgy7Gv13MfcvPcmDZiJxn80u4+S7v75NcWk/W/ufsHw79WKSerI9/3D8yHWtAxbehNwZt1vb0pszdfpTse/PInAFdWbnCtUj7SngBnnpKd+SoojmOvQq8I9kmnHa4d/KifVbrjsTn+BIq96++Z4auD3gOZrdY9tlqQPd8rVH2hSWO+dubPi52ZmHzf7wvDbhPmjrffbxfIjIDK85fs7Oyw+eNvyRwBsNW6l7zPFABg6tb9Mx8JzuyEB0MYLEZ9oXnsKidz+wGV+dqRn/lrN+JCzu09gfNnQSb8YRuv0soGpZWNYx83Xshl++5+gOivPWfufqda0KgCtNaf0g4jGtZd3lp/mry+PncpaVN2CzJHFI35Wt9DG3DnCVkqjqNN/x81R4w6Vxo2h6Tx/0hFRERERERERERERERERERE0uNvTti9kUoaqmkAAAAASUVORK5CYII=", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADPElEQVR42u3Zz0sUcRjH8ffIxpL/wgZJLSxu7FzCWi/hIbqsRJF6qL20SMcuEkL041AIFnkJoUNsFwVRT6JRh0C6ZK1QjVRsbFGwE93qEEUg2cFmnF1nU2vL+cLnddn5uir6PN8fz/dZEBERERERERERERERERERERERERERERERkb9imfzHJxKJleDYdV1LCfiPwZ9K7wRg4d13AG58/WFcEizTg+8JJsGkVREzLfgfbxxh/8iL0OC/OnqOQTsFQIedBKCn+9BKlJNgmT77g8HP2Ck/8ADFsTkydorh84XIroQWkw/hjYJfyOdYcsoMDhXXHdhKQJPUB7/kVCg5FQr5HEDkk9Bi8vbjWXLKlJwKxbE5OuwkHXaS7sMHAOg+fICMnWLJKaMV8A+2H8APcCGf8wNvCqMS4Lqu1fvymz+uLzkB0ul06OvdieFIHsRGVkEDrS1+AqbSO7ljn/XfP7l8D4BUZjcA5aX35KefR7YKMjYBXvDrKyGA/vYPAHx2ngAwveNYZEtRY8+A+sO4feZ66EF7+VW7WhH/YvvJtsVZzI/65eejvi7/+7Jtcf/ZOzN0EWuibFu8Zt8H6JycX1chLeZHIx18MKgXtK77aeNfvLxVELtwe21p20lwKpH/v2ImBL7hns/qwVv6FWjvLmCSmGmBD7uABcfBFaEENLnlEAx+WBK811MvTjG+b5xbI6ORT4BlSvDDEtA5Oe+3nL0EeM/LV/trbsyqgjYR+K0EH9ZazvVbTnA8mzrOQGuL2tGbmfWNgh/m8bdW2meu+/W/N/vrg3+sN1dTHekM+ANhsz/oUV8Xp9vi4ED2igWvP5G9CLOTOoSbbq0D+oWDdQu484rFQvweZFbHDzjIzZVcpD+SjEQCXNe1emm8/9cGfpXXkgjadeIr1eoeFp69BeDM80vcnSjoJtyMWT84VGxY5cQu3Kb3fGHdz70p6ybclFUwOFSsqfm9JHj9n+LYXOjv3JtKUn7KhhXQdq6QSN4D6m/A1rX7lJwKw4FZPj370H/u6T6E67pWIpFYqVar/hYUbFH8znZ+WhbZvTFs1gaDFHy/0de3svoQERERERERERERERERERERkSb6CZ22h2mhMWCLAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADMElEQVR42u3az0uTcRwH8PcjC3/Qf/A9JBUMFxsdSg0iOnhSiYIWMgaRSBdPEjEIy0MhzLCgqJPYwRmDdoo5FOrixdW6+Awmiwl2WLeok0MQnw7yfXye755t2uV5nvV+XebmHmXvz/N8vp/nqwARERERERERERERERERERERERERERERERERERER0Ylp7fzhhBCG/LparXryswbaOfgPoW7ztSgOX/NaIbR2D17K7+wBAOZ3DzxVBM3PQcsgmwXfqAhWbhZE82P4D3o6bEHK5wAw2NtpC1u+Jp9v3XiIcCQIALgcOQ8AuD16zbUiaH45261nq7UIjTgVR4YvgweAxdQKwpEgko/GXSmC5vXg1bYSLdXq3qteEU7taXgs4Rj+eHzE1SJoXg2/VT+Plmp1ITv1dCGEoYZf0Cu2FuTmlRDwY/jyypCjJQBksutmkLl00lDfX9TL5uN4fAQAMDrUj+ynrxgd6sfMi/fme3gfoEwtqsHeTmhza8hY2oi1pVjbyqXUJN4BCEeCZvgyeN6INTn7G4Uvv3fF0krko/y6qJePWs7cGpBasR0fCoUcH3Pp5P+9BsgCWBfaRtNOYHoBALD/bMIcPQHgW/yNvQCWHi/F9lcBAMHwGQBAufgD8cwmpyBZBHURbTVyqu7eqmH5wrJtod24c912DzDR9xMA8Ec/bEWZUzddmYI6vFYANYBqtaqpd67HIRfUgl4xW1Tfx+eOC+3MVh+3Io57X9DsavhS6wEAvI39QrQUw7ng4dkvz3pru8rv7HliS8I3u6EynHnLzC+LIYMf6N6tO842/08vAKlJ86bNC5tyvt4NFUIYV7XTtuCnlrqA778BAPc3n9QtxgW94tq2Q1sVwGlxnlrqQr5z9eh+oTiA18bRYuy18D25CP9r+ACw8djA4MWz5vOXT7s9e+b7bg1Q93vmdw+QmF00p5p7+quG01AunXRtkW2LAgghjMTsohmonGoAWLYhgO1yBZ+VY2X4TkV0c/rxTQGEEEYmu27O8nJPR11ct8uVhj9jeCzR9Hfk0kmDf5A5Qfs56fja6niv/scEERERERERERERERERERERkX/9BRjpjySEV/PeAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADJ0lEQVR42u3Zb0gTcRwG8GdrYO1lr4K9SGp0rLrLF80/byLIV058lSGyQI/Rm0CwsRYiQjEEEwl8GTKLBsH0RYgDiQLxTUsp6gYbCwkL1uteacJyvrD7cXeaI/Hgdj2fN253t8l9n9/fHUBERERERERERERERERERERERERERERERERERERE9M88br2xQCBQ019XKhXH3qfPrcWfu3hKvO9FoObUELxuL77TeUEM4Dhbf9xvvqXe4paj5wBX9oD8xjZ7gBNaPwNwcFjGZWq949wHHLEHtDc37ZsHjNdNbe6YrtdXT73FLXHsw71LnjPx1wzgqMNPvRCs11npYdg1kbs+gMNC0M8bP3tYEHaE4MoAOrLLAIB0JofQwuS+EKwtWg+jXq+wIwSPG4o/v7giCq5GI7jwsg0Pfo9BjUYAAO9uXa/bG7r6kqbvtQZnVwCuWQWtaeumv8bXHdlllHoS8I3OiD1C3O8Vq56uviRkRYKsSAAAWZFQ6kmY9hR27S18bip+aGESBSSAE+bz6UwOsiIhrASB7LLoEXG/VxS6oJVF8cNKcO8YEggtTNq6sfM2+vAT93tRTcVQTcVMQwcAvJrLmXqEdY4o9SREq1ejEajRiAgirARNPWFqc8eWSbihA6hUKh7rWn74xUmcvgw8vfLI1LKtw5Pe2gGgv7qE+0MD6O5shRqNiOv0EOwqvmuGIGPx801LgLz3/i3acOfzGGRFQkErQ1YkUdz25ia0hH4AAN5/BB5PP+NPEUcZggDANzoDAHhy+xfaW86J8zey/aYhpqCVUdDKYrjSSfJZ0QO6O1sRVoJIZ3KiF9jJ12jFNkqOp0VRB/+ygTIWUVYkVFMxsbT8qa2Ka6w9QI1GxLL2vw8gEAjUkuNpMabrrVov1N5KBxjUpk2fOy8F9wVR+1P8/MY2ZkshPAyVUC58w9jzARSLRQDA4ptVsXK62X3N1ucJnkYo/vziimkC1UMwDg9r2jqqqRiGv3xH/tPXAydd3dXMXcwqQyLIiREVesDG758YUW1/mONp1OHnuFdTB/0PJz9JIyIiIiIiIiIiIiIiIiIiInK2XUUEYqKQR0UQAAAAAElFTkSuQmCC", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAAC4ElEQVR42u3YMWgTURgH8H+CENrR9Q0GDR4p3umS2i4iWFB6pVgwWuqB9XC1IKWNk0KRDpYiVLp0CAoBoS0IJYUODpLFS1tELpASCRKHODu1BGrjUN5rL42RqhHu+v9B4O64C+H753vfSwAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiopNLCFH30+cNB634S10dvgohHLTi+02gOkDyUxcEKgCnUvPdZz4V1GG81NWBJES9Wq2G/maAH+f5PxEKQrGFEPXxzoNm7olG1HGyuHOkkLLQ8po8bzZDmj3PAH4TQKsgAEDeO7u9p857ohE4lZrnmcYg2hFCIAO4N7SD1287moYhg2gWWKsA2xVCYGfA1uAE4iszngHdE42oZeZwRwBA/3DKcx5fmWnZEdwFtSg8ANiWia3BCWS1IXV905qHU6nBqdQ8HdA/nIJuaNANDQCgG5p6H7mzatcOK+T3pUceL2dzSGdWYVsmzr+5jMc/nsC2TABAOrMK3dCQMGIAgA+3rx4JTJL3bbhlFNySp4tmt/f++RIU9nPxxzvDGO8MYzmbw4Zb3l+3azdw+gKwcHFKXWvUu/heFV9+623LhG2ZKLglAEDCiHk6oR3F93UA1Wo1JHcxstALyZdwImtw9DwcPY+HobueEBoDkcUf2V3D5NgoBvq6YVumuk+G0K7iB2YI7z57AAB4AeDR57NwPn0BAFxbHMHN5H6hC24JuqEddEo0gkvxbwCA/Efg+dwr/hI+7q/U1HRaLRn33blfPpswYkgYMaQzq03v1fQzuDM2imKxCADIvltX80TOjRMdgBCinppOA4D6JksHg3Z/69h76Llzmrd4tmWiPnldnX9319VxYwfYlqlCONHbUCFEfTmb86zbhwdl43rebI3fcMvqtWnNq23l0604AKBU+KpmwEBft2fndGvgSlv/Dwr5dfn5n8MeRERERERERERERERERERERHRMPwHqjSlGYYr5yAAAAABJRU5ErkJggg==", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABUCAYAAAB9czKDAAADFElEQVR42u3YYWgTZxzH8W9ipNRXpVqEnTqRQmjxzjFop77wxdahkOKrZYN5SA2ydwbGsL5zbAxhFRGUvZGR+qKCGGUgLVj0hduLrWtl06teiXTiRjOIIBQKLcG28UV2j7msOgaeGv19IJC7PBfI7/9/nnsuICIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIir7qYIgizLKtSe1wsFiPNKKHIIbPpXUaXShWAfGdz6LM01YJEVYjYm9DF/9XRlmVV8p3NjN0vs31z04rXpf2FSIoQex1D9/aVKfze8tQgg0IE13yxJr7i2PpiRFGExOsSfHjpKDPoZDngnTJngu4OxqWxKrXBT+09HPrejsvHnzkjnpdVjR5+vrOZj9tWm3ODTpae+I9s2jfAYKmVS7NrWfPHbab2Hmbpw/38dfkHZmaX2Lk6FgrfdpKsX7+OB6WH2E6SOy1J2go/MzO7xIaWBGP3y/zyqMLc3NxXKkBN+GYtHRhlsNRKxk2x9vb3HL/1Fhk3xQfvb+dquQ3bSdLltLMx3cdM/uy/Ov9B6aEJv8tpZ5F4qAhAJAWIN2oBisViLO0vkPYXiA2MMuFNV9ft8h5at8KZbV+bc/V2XLge6nyAjJsi46aY9AoAdDnt2E7SFOjE/HIkN+FEI8+AYA0Pgj6TPs1Y0xWwq2MOTb7Hae+cuWbCm6bLaTfHQfifLl6hP5vH932Gr42bccHYb88vR7YNTTR6+ACL3xwE4CTw+d0tjN28B8Bnt45iO9WgJ70CtpN8MlM2N/FOx98A/PobDJw6+1J+S6KRQq89PjG/zJFjObNk1O546js86Obc0MiKY5P223yS7cP3fQCGr42TGxoh46ZCM+aNLYBlWZUjx3IAppPNU6ybAiA3VN067njWE6+botK/2xzPeuPmff0MyLgpU4QoxRsh/IvDP4W6uvZGWd/tK5nwps3rhvudeS74cqoDgMLkn/Rn++jt6aa3p/ufgo5gO0k+6t0V6f9BsUZcfl70bkv/lomIiIiIiIiIiIiIiIiIiIj8X48BP6cyFTFAjeEAAAAASUVORK5CYII="]};
+const IMAGE_SPRITES = {"m_green_mush": "data:image/png;base64,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", "m_goblin": "data:image/png;base64,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", "m_wraith": "data:image/png;base64,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"};
+const LOCAL_READINGS = {"する": "する", "なる": "なる", "住む": "すむ", "出る": "でる", "始める": "はじめる", "帰る": "かえる", "歩く": "あるく", "立つ": "たつ", "終わる": "おわる", "行く": "いく", "走る": "はしる", "起きる": "おきる", "飛ぶ": "とぶ", "分かる": "わかる", "思う": "おもう", "知る": "しる", "聞く": "きく", "見る": "みる", "読む": "よむ", "会う": "あう", "呼ぶ": "よぶ", "教える": "おしえる", "言う": "いう", "あげる": "あげる", "くれる": "くれる", "作る": "つくる", "使う": "つかう", "入れる": "いれる", "売る": "うる", "持つ": "もつ", "書く": "かく", "置く": "おく", "買う": "かう", "体": "からだ", "頭": "あたま", "顔": "かお", "飲む": "のむ", "友達": "ともだち", "子供": "こども", "家": "うち", "部屋": "へや", "彼女": "かのじょ", "仕事": "しごと", "先生": "せんせい", "大学": "だいがく", "学校": "がっこう", "学生": "がくせい", "本": "ほん", "言葉": "ことば", "働く": "はたらく", "質問": "しつもん", "今": "いま", "あと": "あと", "今年": "ことし", "今日": "きょう", "午前": "ごぜん", "午後": "ごご", "春": "はる", "時間": "じかん", "次": "つぎ", "所": "ところ", "車": "くるま", "別": "べつ", "同じ": "おなじ", "大好き": "だいすき", "好き": "すき", "古い": "ふるい", "多い": "おおい", "安い": "やすい", "少ない": "すくない", "広い": "ひろい", "新しい": "あたらしい", "早い": "はやい", "熱い": "あつい", "若い": "わかい", "近い": "ちかい", "長い": "ながい", "難しい": "むずかしい", "高い": "たかい", "いつ": "いつ", "どう": "どう", "どこ": "どこ", "どれ": "どれ", "誰": "だれ", "あなた": "あなた", "これ": "これ", "そこ": "そこ", "それ": "それ", "私": "わたし", "こう": "こう", "そう": "そう", "とても": "とても", "どうぞ": "どうぞ", "まだ": "まだ", "もう": "もう", "もっと": "もっと", "よく": "よく", "直ぐ": "すぐ", "一つ": "ひとつ", "数": "かず", "いる": "いる", "やる": "やる", "乗る": "のる", "寝る": "ねる", "座る": "すわる", "引く": "ひく", "待つ": "まつ", "死ぬ": "しぬ", "続く": "つづく", "落ちる": "おちる", "起こす": "おこす", "起こる": "おこる", "送る": "おくる", "遊ぶ": "あそぶ", "閉める": "しめる", "開ける": "あける", "できる": "できる", "忘れる": "わすれる", "楽しむ": "たのしむ", "見せる": "みせる", "覚える": "おぼえる", "歌う": "うたう", "笑う": "わらう", "話す": "はなす", "もらう": "もらう", "上げる": "あげる", "取る": "とる", "払う": "はらう", "探す": "さがす", "見つける": "みつける", "お医者さん": "おいしゃさん", "病気": "びょうき", "耳": "みみ", "肩": "かた", "胸": "むね", "腕": "うで", "足": "あし", "首": "くび", "着る": "きる", "酒": "さけ", "食べる": "たべる", "みんな": "みんな", "ドア": "ドア", "兄": "あに", "名前": "なまえ", "夫": "おっと", "女の子": "おんなのこ", "姉": "あね", "娘": "むすめ", "息子": "むすこ", "男の子": "おとこのこ", "親": "おや", "浴びる": "あびる", "消す": "けす", "結婚": "けっこん", "図書館": "としょかん", "漢字": "かんじ", "紙": "かみ", "勉強": "べんきょう", "授業": "じゅぎょう", "いつも": "いつも", "今月": "こんげつ", "冬": "ふゆ", "去年": "きょねん", "年": "とし", "秋": "あき", "週": "しゅう", "右": "みぎ", "国": "くに", "木": "き", "自転車": "じてんしゃ", "近く": "ちかく", "電車": "でんしゃ", "飛行機": "ひこうき", "元気": "げんき", "低い": "ひくい", "弱い": "よわい", "狭い": "せまい", "白い": "しろい", "短い": "みじかい", "美しい": "うつくしい", "赤い": "あかい", "軽い": "かるい", "速い": "はやい", "遅い": "おそい", "遠い": "とおい", "重い": "おもい", "気持ち": "きもち", "緑": "みどり", "色": "いろ", "どちら": "どちら", "ここ": "ここ", "私たち": "わたしたち", "かなり": "かなり", "一番": "いちばん", "一緒に": "いっしょに", "少し": "すこし", "一": "いち", "全部": "ぜんぶ", "円": "えん", "上る": "のぼる", "入る": "はいる", "始まる": "はじまる", "戻る": "もどる", "晴れる": "はれる", "曇る": "くもる", "曲がる": "まがる", "泊まる": "とまる", "空く": "すく", "締める": "しめる", "閉じる": "とじる", "開く": "ひらく", "頑張る": "がんばる", "考える": "かんがえる", "しゃべる": "しゃべる", "手伝う": "てつだう", "切る": "きる", "変える": "かえる", "掛ける": "かける", "直る": "なおる", "要る": "いる", "触る": "さわる", "載せる": "のせる", "お腹": "おなか", "服": "ふく", "歯": "は", "背": "せ", "腰": "こし", "風邪": "かぜ", "髪の毛": "かみのけ", "鼻": "はな", "ご飯": "ごはん", "水": "みず", "米": "こめ", "食べ物": "たべもの", "飲み物": "のみもの", "渇く": "かわく", "お姉さん": "おねえさん", "お母さん": "おかあさん", "お父さん": "おとうさん", "テーブル": "テーブル", "金": "かね", "つける": "つける", "カタカナ": "カタカナ", "ゲーム": "ゲーム", "ミーティング": "ミーティング", "大学生": "だいがくせい", "平仮名": "ひらがな", "携帯電話": "けいたいでんわ", "これから": "これから", "今晩": "こんばん", "今週": "こんしゅう", "六日": "むいか", "土曜日": "どようび", "日曜日": "にちようび", "昼": "ひる", "時": "とき", "時計": "とけい", "晩": "ばん", "曜日": "ようび", "月曜日": "げつようび", "朝": "あさ", "木曜日": "もくようび", "水曜日": "すいようび", "火曜日": "かようび", "終わり": "おわり", "金曜日": "きんようび", "そば": "そば", "天気": "てんき", "後ろ": "うしろ", "雨": "あめ", "嫌い": "きらい", "駄目": "だめ", "まずい": "まずい", "優しい": "やさしい", "太い": "ふとい", "嬉しい": "うれしい", "悲しい": "かなしい", "暑い": "あつい", "楽しい": "たのしい", "汚い": "きたない", "無い": "ない", "甘い": "あまい", "痛い": "いたい", "黄色い": "きいろい", "茶色": "ちゃいろ", "どうして": "どうして", "あれ": "あれ", "こっち": "こっち", "ちょっと": "ちょっと", "多分": "たぶん", "三": "さん", "二": "に", "二つ": "ふたつ", "十": "じゅう", "千": "せん", "四": "よん", "日": "にち", "ある": "ある", "休む": "やすむ", "動く": "うごく", "来る": "くる", "止める": "やめる", "違う": "ちがう", "閉まる": "しまる", "見える": "みえる", "答える": "こたえる", "出す": "だす", "見つかる": "みつかる", "口": "くち", "手": "て", "目": "め", "お兄さん": "おにいさん", "お手洗い": "おてあらい", "ご主人": "ごしゅじん", "人": "ひと", "大人": "おとな", "女": "おんな", "妹": "いもうと", "妻": "つま", "弟": "おとうと", "母": "はは", "父": "ちち", "男": "おとこ", "店": "みせ", "線": "せん", "高校生": "こうこうせい", "お願い": "おねがい", "時々": "ときどき", "一日": "ついたち", "七日": "なのか", "三日": "みっか", "九日": "ここのか", "二十日": "はつか", "二日": "ふつか", "五日": "いつか", "八日": "ようか", "十日": "とおか", "四日": "よっか", "夏": "なつ", "夜": "よる", "昨日": "きのう", "来年": "らいねん", "上": "うえ", "下": "した", "先": "さき", "前": "まえ", "左": "ひだり", "方": "ほう", "月": "つき", "花": "はな", "辺": "へん", "道": "みち", "駅": "えき", "上手": "じょうず", "大丈夫": "だいじょうぶ", "綺麗": "きれい", "いい": "いい", "冷たい": "つめたい", "大きい": "おおきい", "寒い": "さむい", "小さい": "ちいさい", "強い": "つよい", "悪い": "わるい", "易しい": "やさしい", "暖かい": "あたたかい", "欲しい": "ほしい", "細い": "ほそい", "美味しい": "おいしい", "辛い": "からい", "酸っぱい": "すっぱい", "何": "なに", "僕": "ぼく", "自分": "じぶん", "あそこ": "あそこ", "彼": "かれ", "いっぱい": "いっぱい", "ゆっくり": "ゆっくり", "本当に": "ほんとうに", "ため": "ため", "他": "ほか", "以外": "いがい", "一人": "ひとり", "七": "なな", "七つ": "ななつ", "万": "まん", "三つ": "みっつ", "九": "きゅう", "九つ": "ここのつ", "五": "ご", "五つ": "いつつ", "八": "はち", "八つ": "やっつ", "六": "ろく", "六つ": "むっつ", "四つ": "よっつ", "百": "ひゃく", "もつ": "もつ", "上がる": "あがる", "下りる": "おりる", "勝つ": "かつ", "増える": "ふえる", "変わる": "かわる", "建てる": "たてる", "比べる": "くらべる", "消える": "きえる", "減る": "へる", "生まれる": "うまれる", "目立つ": "めだつ", "続ける": "つづける", "繰り返す": "くりかえす", "調べる": "しらべる", "負ける": "まける", "進める": "すすめる", "治る": "なおる", "選ぶ": "えらぶ", "集める": "あつめる", "声": "こえ", "病院": "びょういん", "薬": "くすり", "メニュー": "メニュー", "砂糖": "さとう", "お巡りさん": "おまわりさん", "お祖父さん": "おじいさん", "ティッシュ": "ティッシュ", "家族": "かぞく", "日記": "にっき", "椅子": "いす", "歯ブラシ": "はブラシ", "目覚まし時計": "めざましどけい", "相手": "あいて", "財布": "さいふ", "電気": "でんき", "洗う": "あらう", "クラス": "クラス", "コンピューター": "コンピューター", "システム": "システム", "テレビ": "テレビ", "パスポート": "パスポート", "パート": "パート", "プログラム": "プログラム", "レシート": "レシート", "世界": "せかい", "休み": "やすみ", "会社": "かいしゃ", "住所": "じゅうしょ", "写真": "しゃしん", "切手": "きって", "力": "ちから", "問題": "もんだい", "売り切れ": "うりきれ", "外国": "がいこく", "意味": "いみ", "意見": "いけん", "文章": "ぶんしょう", "新聞": "しんぶん", "社会": "しゃかい", "話": "はなし", "郵便局": "ゆうびんきょく", "銀行": "ぎんこう", "予定": "よてい", "生活": "せいかつ", "買い物": "かいもの", "電話": "でんわ", "今回": "こんかい", "昨年": "さくねん", "最近": "さいきん", "バス": "バス", "事故": "じこ", "川": "かわ", "十分": "じゅうぶん", "必要": "ひつよう", "厚い": "あつい", "可愛い": "かわいい", "忙しい": "いそがしい", "暗い": "くらい", "涼しい": "すずしい", "薄い": "うすい", "青い": "あおい", "黒い": "くろい", "種類": "しゅるい", "こちら": "こちら", "これら": "これら", "あまり": "あまり", "ほとんど": "ほとんど", "まず": "まず", "初めて": "はじめて", "ただ": "ただ", "まま": "まま", "多く": "おおく", "いくつ": "いくつ", "ドル": "ドル", "以上": "いじょう", "氏名": "しめい", "今夜": "こんや", "夜中": "よなか", "来週": "らいしゅう", "誰か": "だれか", "今朝": "けさ", "寿司": "すし", "履く": "はく", "おじさん": "おじさん", "おばさん": "おばさん", "お祖母さん": "おばあさん", "いとこ": "いとこ", "辞書": "じしょ", "朝ご飯": "あさごはん", "白": "しろ", "どっち": "どっち", "そっち": "そっち", "明日": "あした", "明後日": "あさって", "一昨日": "おととい", "庭": "にわ", "左側": "ひだりがわ", "右側": "みぎがわ", "指": "ゆび", "眼鏡": "めがね", "鞄": "かばん", "あっち": "あっち", "大人しい": "おとなしい", "下手": "へた", "厳しい": "きびしい", "一人で": "ひとりで", "答え": "こたえ", "この頃": "このごろ", "残念": "ざんねん", "仕舞う": "しまう", "心配": "しんぱい", "外": "そと", "大切": "たいせつ", "ちょうど": "ちょうど", "助ける": "たすける", "勤める": "つとめる", "連れていく": "つれていく", "丈夫": "じょうぶ", "賑やか": "にぎやか", "眠い": "ねむい", "山": "やま", "橋": "はし", "止まる": "とまる", "降る": "ふる", "本当": "ほんとう", "町": "まち", "お菓子": "おかし", "緩い": "ゆるい", "良い": "よい", "ようこそ": "ようこそ", "お土産": "おみやげ", "両親": "りょうしん", "ウェーター": "ウェーター", "ウェートレス": "ウェートレス", "絶対に": "ぜったいに", "ごちそう": "ごちそう", "フォーク": "フォーク", "スプーン": "スプーン", "瓶": "びん", "付く": "つく", "醤油": "しょうゆ", "茶碗": "ちゃわん", "決める": "きめる", "感じる": "かんじる", "生きる": "いきる", "動かす": "うごかす", "壊れる": "こわれる", "復習": "ふくしゅう", "眉": "まゆ", "客": "きゃく", "机": "つくえ", "風呂": "ふろ", "湯": "ゆ", "ぬるい": "ぬるい", "風邪薬": "かぜぐすり", "靴下": "くつした", "たばこ": "たばこ", "アイスコーヒー": "アイスコーヒー", "天ぷら": "てんぷら", "肉": "にく", "昨夜": "ゆうべ", "流行る": "はやる", "連れてくる": "つれてくる", "零": "れい", "雲": "くも", "空": "そら", "人気": "にんき", "兄さん": "にいさん", "姉さん": "ねえさん", "平成": "へいせい", "毎月": "まいつき", "半日": "はんにち", "半月": "はんつき", "なるほど": "なるほど", "つまり": "つまり", "そのまま": "そのまま", "はっきり": "はっきり", "大変": "たいへん", "簡単": "かんたん", "似ている": "にている", "驚く": "おどろく", "嫌": "いや", "喧嘩": "けんか", "遅れる": "おくれる", "にんじん": "にんじん", "ジャガイモ": "ジャガイモ", "ナス": "ナス", "やかん": "やかん", "話し合う": "はなしあう", "残す": "のこす", "ごちそうする": "ごちそうする", "合う": "あう", "当たる": "あたる", "集まる": "あつまる", "場所": "ばしょ", "海": "うみ", "少年": "しょうねん", "孫": "まご", "生徒": "せいと", "高校": "こうこう", "年上": "としうえ", "卒業": "そつぎょう", "運動": "うんどう", "選手": "せんしゅ", "映画": "えいが", "英語": "えいご", "手紙": "てがみ", "動物": "どうぶつ", "音": "おと", "海外": "かいがい", "外国人": "がいこくじん", "帰国": "きこく", "彼ら": "かれら", "機械": "きかい", "基本": "きほん", "今度": "こんど", "最後": "さいご", "最初": "さいしょ", "準備": "じゅんび", "進む": "すすむ", "直接": "ちょくせつ", "特に": "とくに", "届く": "とどく", "なぜ": "なぜ", "並ぶ": "ならぶ", "運ぶ": "はこぶ", "直す": "なおす", "反対": "はんたい", "場合": "ばあい", "詳しい": "くわしい", "いたずら": "いたずら", "お祝い": "おいわい", "くし": "くし", "こぼれる": "こぼれる", "伝える": "つたえる", "膝": "ひざ", "肘": "ひじ", "枕": "まくら", "建物": "たてもの", "道路": "どうろ", "四つ角": "よつかど", "曲がり角": "まがりかど", "警察": "けいさつ", "空気": "くうき", "スポーツ": "スポーツ", "チャンス": "チャンス", "クリーニング": "クリーニング", "サービス": "サービス", "グループ": "グループ", "自宅": "じたく", "家庭": "かてい", "期間": "きかん", "年度": "ねんど", "経験": "けいけん", "安全": "あんぜん", "危険": "きけん", "注意": "ちゅうい", "成功": "せいこう", "努力": "どりょく", "説明": "せつめい", "地震": "じしん", "手術": "しゅじゅつ", "火傷": "やけど", "課題": "かだい", "子": "こ", "確認": "かくにん", "実際": "じっさい", "国際": "こくさい", "会議": "かいぎ", "提案": "ていあん", "事務所": "じむしょ", "教授": "きょうじゅ", "世紀": "せいき", "あちこち": "あちこち", "そちら": "そちら", "あちら": "あちら", "もし": "もし", "うるさい": "うるさい", "固い": "かたい", "深い": "ふかい", "面白い": "おもしろい", "全く": "まったく", "半分": "はんぶん", "普通": "ふつう", "分": "ぶん", "文化": "ぶんか", "毎日": "まいにち", "気を付ける": "きをつける", "守る": "まもる", "もちろん": "もちろん", "やはり": "やはり", "いくら": "いくら", "よろしく": "よろしく", "どなた": "どなた", "許す": "ゆるす", "分ける": "わける", "自然": "しぜん", "アパート": "アパート", "ホテル": "ホテル", "パソコン": "パソコン", "うまい": "うまい", "明るい": "あかるい", "急ぐ": "いそぐ", "歌": "うた", "中学校": "ちゅうがっこう", "テスト": "テスト", "ポスト": "ポスト", "ハンカチ": "ハンカチ", "髪": "かみ", "帽子": "ぼうし", "被る": "かぶる", "ブラウス": "ブラウス", "週末": "しゅうまつ", "先週": "せんしゅう", "再来週": "さらいしゅう", "いつか": "いつか", "宿題": "しゅくだい", "鍵": "かぎ", "傘": "かさ", "乗り換える": "のりかえる", "向かう": "むかう", "本屋": "ほんや", "お茶": "おちゃ", "改札口": "かいさつぐち", "晴れ": "はれ", "バス停": "バスてい", "曇り": "くもり", "塩": "しお", "たくさん": "たくさん", "大嫌い": "だいきらい", "中": "なか", "二階": "にかい", "無くす": "なくす", "まあまあ": "まあまあ", "黄色": "きいろ", "ランチ": "ランチ", "魚": "さかな", "味": "あじ", "りんご": "りんご", "みかん": "みかん", "皿": "さら", "コーヒー": "コーヒー", "コップ": "コップ", "二人": "ふたり", "止む": "やむ", "昼間": "ひるま", "いつ頃": "いつごろ", "字": "じ", "お釣り": "おつり", "名字": "みょうじ", "おじ": "おじ", "おば": "おば", "祖父": "そふ", "祖母": "そぼ", "大事": "だいじ", "見方": "みかた", "鳥": "とり", "犬": "いぬ", "返事": "へんじ", "また": "また", "年間": "ねんかん", "青": "あお", "赤": "あか", "信号": "しんごう", "非常に": "ひじょうに", "複雑": "ふくざつ", "平和": "へいわ", "回る": "まわる", "若者": "わかもの", "雪": "ゆき", "思い出す": "おもいだす", "聞こえる": "きこえる", "借りる": "かりる", "返す": "かえす", "受け取る": "うけとる", "捨てる": "すてる", "一緒": "いっしょ", "遊び": "あそび", "移す": "うつす", "大きさ": "おおきさ", "考え": "かんがえ", "空港": "くうこう", "出発": "しゅっぱつ", "地図": "ちず", "運転": "うんてん", "降りる": "おりる", "ガス": "ガス", "必ず": "かならず", "カメラ": "カメラ", "通う": "かよう", "急に": "きゅうに", "サラリーマン": "サラリーマン", "給料": "きゅうりょう", "曲": "きょく", "切れる": "きれる", "正しい": "ただしい", "苦しい": "くるしい", "細かい": "こまかい", "静か": "しずか", "健康": "けんこう", "ゴルフ": "ゴルフ", "コース": "コース", "頼む": "たのむ", "困る": "こまる", "ずっと": "ずっと", "例えば": "たとえば", "つもり": "つもり", "しばらく": "しばらく", "紹介": "しょうかい", "小学校": "しょうがっこう", "公園": "こうえん", "中学": "ちゅうがく", "成績": "せいせき", "教科書": "きょうかしょ", "席": "せき", "教室": "きょうしつ", "教師": "きょうし", "試験": "しけん", "合格": "ごうかく", "数学": "すうがく", "数字": "すうじ", "音楽": "おんがく", "食事": "しょくじ", "壁": "かべ", "信じる": "しんじる", "育てる": "そだてる", "倒れる": "たおれる", "落とす": "おとす", "代わる": "かわる", "タクシー": "タクシー", "確か": "たしか", "立てる": "たてる", "中学生": "ちゅうがくせい", "売れる": "うれる", "着く": "つく", "決まる": "きまる", "飾る": "かざる", "殺す": "ころす", "下げる": "さげる", "贈る": "おくる", "訪ねる": "たずねる", "打つ": "うつ", "相談": "そうだん", "玄関": "げんかん", "兄弟": "きょうだい", "長男": "ちょうなん", "高さ": "たかさ", "用": "よう", "時代": "じだい", "位置": "いち", "季節": "きせつ", "穴": "あな", "裏": "うら", "島": "しま", "海岸": "かいがん", "ガラス": "ガラス", "風": "かぜ", "科学": "かがく", "太陽": "たいよう", "台風": "たいふう", "北": "きた", "馬": "うま", "牛肉": "ぎゅうにく", "雑誌": "ざっし", "小説": "しょうせつ", "大使館": "たいしかん", "故障": "こしょう", "温度": "おんど", "何か": "なにか", "向こう": "むこう", "真ん中": "まんなか", "遠く": "とおく", "横": "よこ", "つまらない": "つまらない", "素晴らしい": "すばらしい", "毎年": "まいとし", "来月": "らいげつ", "日時": "にちじ", "夕方": "ゆうがた", "通る": "とおる", "自動車": "じどうしゃ", "慣れる": "なれる", "撮る": "とる", "やっと": "やっと", "どんどん": "どんどん", "並べる": "ならべる", "逃げる": "にげる", "渡す": "わたす", "値段": "ねだん", "両方": "りょうほう", "約束": "やくそく", "一部": "いちぶ", "ラジオ": "ラジオ", "入院": "にゅういん", "ニュース": "ニュース", "旅行": "りょこう", "用意": "ようい", "伸びる": "のびる", "パーティー": "パーティー", "ビール": "ビール", "早く": "はやく", "番組": "ばんぐみ", "ビデオ": "ビデオ", "増やす": "ふやす", "振る": "ふる", "迎える": "むかえる", "無理": "むり", "珍しい": "めずらしい", "有名": "ゆうめい", "喜ぶ": "よろこぶ", "留学": "りゅうがく", "料理": "りょうり", "野菜": "やさい", "分かれる": "わかれる", "特別": "とくべつ", "理由": "りゆう", "自由": "じゆう", "方向": "ほうこう", "残る": "のこる", "ビル": "ビル", "まとめる": "まとめる", "流れる": "ながれる", "セーター": "セーター", "シャツ": "シャツ", "洗濯": "せんたく", "間違える": "まちがえる", "アイスクリーム": "アイスクリーム", "乾く": "かわく", "冷める": "さめる", "色々": "いろいろ", "持って行く": "もっていく", "着替える": "きがえる", "石鹸": "せっけん", "野球": "やきゅう", "昼食": "ちゅうしょく", "朝食": "ちょうしょく", "眠る": "ねむる", "初め": "はじめ", "火": "ひ", "西": "にし", "東": "ひがし", "南": "みなみ", "夕食": "ゆうしょく", "なかなか": "なかなか", "励ます": "はげます", "涙": "なみだ", "夢": "ゆめ", "職場": "しょくば", "隣": "となり", "マンション": "マンション", "エレベーター": "エレベーター", "窓": "まど", "押す": "おす", "入学": "にゅうがく", "戸": "と", "通り": "とおり", "亡くなる": "なくなる", "夫婦": "ふうふ", "女性": "じょせい", "森": "もり", "トラック": "トラック", "レコード": "レコード", "熱": "ねつ", "ページ": "ページ", "踊る": "おどる", "長さ": "ながさ", "厚さ": "あつさ", "秘密": "ひみつ"};
+
+Object.assign(LOCAL_READINGS,{"訪れる":"おとずれる","景色":"けしき","町":"まち","京都":"きょうと"});
+const LOCAL_ENTRIES = [{"s":"する","r":"する","p":"Verb"},{"s":"なる","r":"なる","p":"Verb"},{"s":"住む","r":"すむ","p":"Verb"},{"s":"出る","r":"でる","p":"Verb"},{"s":"始める","r":"はじめる","p":"Verb"},{"s":"帰る","r":"かえる","p":"Verb"},{"s":"歩く","r":"あるく","p":"Verb"},{"s":"立つ","r":"たつ","p":"Verb"},{"s":"終わる","r":"おわる","p":"Verb"},{"s":"行く","r":"いく","p":"Verb"},{"s":"走る","r":"はしる","p":"Verb"},{"s":"起きる","r":"おきる","p":"Verb"},{"s":"飛ぶ","r":"とぶ","p":"Verb"},{"s":"分かる","r":"わかる","p":"Verb"},{"s":"思う","r":"おもう","p":"Verb"},{"s":"知る","r":"しる","p":"Verb"},{"s":"聞く","r":"きく","p":"Verb"},{"s":"見る","r":"みる","p":"Verb"},{"s":"読む","r":"よむ","p":"Verb"},{"s":"会う","r":"あう","p":"Verb"},{"s":"呼ぶ","r":"よぶ","p":"Verb"},{"s":"教える","r":"おしえる","p":"Verb"},{"s":"言う","r":"いう","p":"Verb"},{"s":"あげる","r":"あげる","p":"Verb"},{"s":"くれる","r":"くれる","p":"Verb"},{"s":"作る","r":"つくる","p":"Verb"},{"s":"使う","r":"つかう","p":"Verb"},{"s":"入れる","r":"いれる","p":"Verb"},{"s":"売る","r":"うる","p":"Verb"},{"s":"持つ","r":"もつ","p":"Verb"},{"s":"書く","r":"かく","p":"Verb"},{"s":"置く","r":"おく","p":"Verb"},{"s":"買う","r":"かう","p":"Verb"},{"s":"体","r":"からだ","p":"Nomen"},{"s":"頭","r":"あたま","p":"Nomen"},{"s":"顔","r":"かお","p":"Nomen"},{"s":"飲む","r":"のむ","p":"Verb"},{"s":"友達","r":"ともだち","p":"Nomen"},{"s":"子供","r":"こども","p":"Nomen"},{"s":"家","r":"うち","p":"Nomen"},{"s":"部屋","r":"へや","p":"Nomen"},{"s":"彼女","r":"かのじょ","p":"Pronomen"},{"s":"仕事","r":"しごと","p":"Nomen"},{"s":"先生","r":"せんせい","p":"Nomen"},{"s":"大学","r":"だいがく","p":"Nomen"},{"s":"学校","r":"がっこう","p":"Nomen"},{"s":"学生","r":"がくせい","p":"Nomen"},{"s":"本","r":"ほん","p":"Nomen"},{"s":"言葉","r":"ことば","p":"Nomen"},{"s":"働く","r":"はたらく","p":"Verb"},{"s":"質問","r":"しつもん","p":"Verbalnomen"},{"s":"今","r":"いま","p":"Adverb"},{"s":"あと","r":"あと","p":"Nomen"},{"s":"今年","r":"ことし","p":"Nomen"},{"s":"今日","r":"きょう","p":"Nomen"},{"s":"午前","r":"ごぜん","p":"Nomen"},{"s":"午後","r":"ごご","p":"Nomen"},{"s":"春","r":"はる","p":"Nomen"},{"s":"時間","r":"じかん","p":"Nomen"},{"s":"次","r":"つぎ","p":"Nomen"},{"s":"所","r":"ところ","p":"Nomen"},{"s":"車","r":"くるま","p":"Nomen"},{"s":"別","r":"べつ","p":"Na-Adjektiv"},{"s":"同じ","r":"おなじ","p":"Na-Adjektiv"},{"s":"大好き","r":"だいすき","p":"Na-Adjektiv"},{"s":"好き","r":"すき","p":"Na-Adjektiv"},{"s":"古い","r":"ふるい","p":"Adjektiv"},{"s":"多い","r":"おおい","p":"Adjektiv"},{"s":"安い","r":"やすい","p":"Adjektiv"},{"s":"少ない","r":"すくない","p":"Adjektiv"},{"s":"広い","r":"ひろい","p":"Adjektiv"},{"s":"新しい","r":"あたらしい","p":"Adjektiv"},{"s":"早い","r":"はやい","p":"Adjektiv"},{"s":"熱い","r":"あつい","p":"Adjektiv"},{"s":"若い","r":"わかい","p":"Adjektiv"},{"s":"近い","r":"ちかい","p":"Adjektiv"},{"s":"長い","r":"ながい","p":"Adjektiv"},{"s":"難しい","r":"むずかしい","p":"Adjektiv"},{"s":"高い","r":"たかい","p":"Adjektiv"},{"s":"いつ","r":"いつ","p":"Fragewort"},{"s":"どう","r":"どう","p":"Fragewort"},{"s":"どこ","r":"どこ","p":"Fragewort"},{"s":"どれ","r":"どれ","p":"Fragewort"},{"s":"誰","r":"だれ","p":"Fragewort"},{"s":"あなた","r":"あなた","p":"Pronomen"},{"s":"これ","r":"これ","p":"Pronomen"},{"s":"そこ","r":"そこ","p":"Pronomen"},{"s":"それ","r":"それ","p":"Pronomen"},{"s":"私","r":"わたし","p":"Pronomen"},{"s":"こう","r":"こう","p":"Adverb"},{"s":"そう","r":"そう","p":"Adverb"},{"s":"とても","r":"とても","p":"Adverb"},{"s":"どうぞ","r":"どうぞ","p":"Adverb"},{"s":"まだ","r":"まだ","p":"Adverb"},{"s":"もう","r":"もう","p":"Adverb"},{"s":"もっと","r":"もっと","p":"Adverb"},{"s":"よく","r":"よく","p":"Adverb"},{"s":"直ぐ","r":"すぐ","p":"Adverb"},{"s":"一つ","r":"ひとつ","p":"Nomen"},{"s":"数","r":"かず","p":"Nomen"},{"s":"いる","r":"いる","p":"Verb"},{"s":"やる","r":"やる","p":"Verb"},{"s":"乗る","r":"のる","p":"Verb"},{"s":"寝る","r":"ねる","p":"Verb"},{"s":"座る","r":"すわる","p":"Verb"},{"s":"引く","r":"ひく","p":"Verb"},{"s":"待つ","r":"まつ","p":"Verb"},{"s":"死ぬ","r":"しぬ","p":"Verb"},{"s":"続く","r":"つづく","p":"Verb"},{"s":"落ちる","r":"おちる","p":"Verb"},{"s":"起こす","r":"おこす","p":"Verb"},{"s":"起こる","r":"おこる","p":"Verb"},{"s":"送る","r":"おくる","p":"Verb"},{"s":"遊ぶ","r":"あそぶ","p":"Verb"},{"s":"閉める","r":"しめる","p":"Verb"},{"s":"開ける","r":"あける","p":"Verb"},{"s":"できる","r":"できる","p":"Verb"},{"s":"忘れる","r":"わすれる","p":"Verb"},{"s":"楽しむ","r":"たのしむ","p":"Verb"},{"s":"見せる","r":"みせる","p":"Verb"},{"s":"覚える","r":"おぼえる","p":"Verb"},{"s":"歌う","r":"うたう","p":"Verb"},{"s":"笑う","r":"わらう","p":"Verb"},{"s":"話す","r":"はなす","p":"Verb"},{"s":"もらう","r":"もらう","p":"Verb"},{"s":"上げる","r":"あげる","p":"Verb"},{"s":"取る","r":"とる","p":"Verb"},{"s":"払う","r":"はらう","p":"Verb"},{"s":"探す","r":"さがす","p":"Verb"},{"s":"見つける","r":"みつける","p":"Verb"},{"s":"お医者さん","r":"おいしゃさん","p":"Nomen"},{"s":"病気","r":"びょうき","p":"Nomen"},{"s":"耳","r":"みみ","p":"Nomen"},{"s":"肩","r":"かた","p":"Nomen"},{"s":"胸","r":"むね","p":"Nomen"},{"s":"腕","r":"うで","p":"Nomen"},{"s":"足","r":"あし","p":"Nomen"},{"s":"首","r":"くび","p":"Nomen"},{"s":"着る","r":"きる","p":"Verb"},{"s":"酒","r":"さけ","p":"Nomen"},{"s":"食べる","r":"たべる","p":"Verb"},{"s":"みんな","r":"みんな","p":"Nomen"},{"s":"ドア","r":"ドア","p":"Nomen"},{"s":"兄","r":"あに","p":"Nomen"},{"s":"名前","r":"なまえ","p":"Nomen"},{"s":"夫","r":"おっと","p":"Nomen"},{"s":"女の子","r":"おんなのこ","p":"Nomen"},{"s":"姉","r":"あね","p":"Nomen"},{"s":"娘","r":"むすめ","p":"Nomen"},{"s":"息子","r":"むすこ","p":"Nomen"},{"s":"男の子","r":"おとこのこ","p":"Nomen"},{"s":"親","r":"おや","p":"Nomen"},{"s":"浴びる","r":"あびる","p":"Verb"},{"s":"消す","r":"けす","p":"Verb"},{"s":"結婚","r":"けっこん","p":"Verbalnomen"},{"s":"図書館","r":"としょかん","p":"Nomen"},{"s":"漢字","r":"かんじ","p":"Nomen"},{"s":"紙","r":"かみ","p":"Nomen"},{"s":"勉強","r":"べんきょう","p":"Verbalnomen"},{"s":"授業","r":"じゅぎょう","p":"Verbalnomen"},{"s":"いつも","r":"いつも","p":"Adverb"},{"s":"今月","r":"こんげつ","p":"Nomen"},{"s":"冬","r":"ふゆ","p":"Nomen"},{"s":"去年","r":"きょねん","p":"Nomen"},{"s":"年","r":"とし","p":"Nomen"},{"s":"秋","r":"あき","p":"Nomen"},{"s":"週","r":"しゅう","p":"Nomen"},{"s":"右","r":"みぎ","p":"Nomen"},{"s":"国","r":"くに","p":"Nomen"},{"s":"木","r":"き","p":"Nomen"},{"s":"自転車","r":"じてんしゃ","p":"Nomen"},{"s":"近く","r":"ちかく","p":"Nomen"},{"s":"電車","r":"でんしゃ","p":"Nomen"},{"s":"飛行機","r":"ひこうき","p":"Nomen"},{"s":"元気","r":"げんき","p":"Na-Adjektiv"},{"s":"低い","r":"ひくい","p":"Adjektiv"},{"s":"弱い","r":"よわい","p":"Adjektiv"},{"s":"狭い","r":"せまい","p":"Adjektiv"},{"s":"白い","r":"しろい","p":"Adjektiv"},{"s":"短い","r":"みじかい","p":"Adjektiv"},{"s":"美しい","r":"うつくしい","p":"Adjektiv"},{"s":"赤い","r":"あかい","p":"Adjektiv"},{"s":"軽い","r":"かるい","p":"Adjektiv"},{"s":"速い","r":"はやい","p":"Adjektiv"},{"s":"遅い","r":"おそい","p":"Adjektiv"},{"s":"遠い","r":"とおい","p":"Adjektiv"},{"s":"重い","r":"おもい","p":"Adjektiv"},{"s":"気持ち","r":"きもち","p":"Nomen"},{"s":"緑","r":"みどり","p":"Nomen"},{"s":"色","r":"いろ","p":"Nomen"},{"s":"どちら","r":"どちら","p":"Fragewort"},{"s":"ここ","r":"ここ","p":"Pronomen"},{"s":"私たち","r":"わたしたち","p":"Pronomen"},{"s":"かなり","r":"かなり","p":"Adverb"},{"s":"一番","r":"いちばん","p":"Adverb"},{"s":"一緒に","r":"いっしょに","p":"Adverb"},{"s":"少し","r":"すこし","p":"Adverb"},{"s":"一","r":"いち","p":"Nomen"},{"s":"全部","r":"ぜんぶ","p":"Nomen"},{"s":"円","r":"えん","p":"Nomen"},{"s":"上る","r":"のぼる","p":"Verb"},{"s":"入る","r":"はいる","p":"Verb"},{"s":"始まる","r":"はじまる","p":"Verb"},{"s":"戻る","r":"もどる","p":"Verb"},{"s":"晴れる","r":"はれる","p":"Verb"},{"s":"曇る","r":"くもる","p":"Verb"},{"s":"曲がる","r":"まがる","p":"Verb"},{"s":"泊まる","r":"とまる","p":"Verb"},{"s":"空く","r":"すく","p":"Verb"},{"s":"締める","r":"しめる","p":"Verb"},{"s":"閉じる","r":"とじる","p":"Verb"},{"s":"開く","r":"ひらく","p":"Verb"},{"s":"頑張る","r":"がんばる","p":"Verb"},{"s":"考える","r":"かんがえる","p":"Verb"},{"s":"しゃべる","r":"しゃべる","p":"Verb"},{"s":"手伝う","r":"てつだう","p":"Verb"},{"s":"切る","r":"きる","p":"Verb"},{"s":"変える","r":"かえる","p":"Verb"},{"s":"掛ける","r":"かける","p":"Verb"},{"s":"直る","r":"なおる","p":"Verb"},{"s":"要る","r":"いる","p":"Verb"},{"s":"触る","r":"さわる","p":"Verb"},{"s":"載せる","r":"のせる","p":"Verb"},{"s":"お腹","r":"おなか","p":"Nomen"},{"s":"服","r":"ふく","p":"Nomen"},{"s":"歯","r":"は","p":"Nomen"},{"s":"背","r":"せ","p":"Nomen"},{"s":"腰","r":"こし","p":"Nomen"},{"s":"風邪","r":"かぜ","p":"Nomen"},{"s":"髪の毛","r":"かみのけ","p":"Nomen"},{"s":"鼻","r":"はな","p":"Nomen"},{"s":"ご飯","r":"ごはん","p":"Nomen"},{"s":"水","r":"みず","p":"Nomen"},{"s":"米","r":"こめ","p":"Nomen"},{"s":"食べ物","r":"たべもの","p":"Nomen"},{"s":"飲み物","r":"のみもの","p":"Nomen"},{"s":"渇く","r":"かわく","p":"Verb"},{"s":"お姉さん","r":"おねえさん","p":"Nomen"},{"s":"お母さん","r":"おかあさん","p":"Nomen"},{"s":"お父さん","r":"おとうさん","p":"Nomen"},{"s":"テーブル","r":"テーブル","p":"Nomen"},{"s":"金","r":"かね","p":"Nomen"},{"s":"つける","r":"つける","p":"Verb"},{"s":"カタカナ","r":"カタカナ","p":"Nomen"},{"s":"ゲーム","r":"ゲーム","p":"Nomen"},{"s":"ミーティング","r":"ミーティング","p":"Nomen"},{"s":"大学生","r":"だいがくせい","p":"Nomen"},{"s":"平仮名","r":"ひらがな","p":"Nomen"},{"s":"携帯電話","r":"けいたいでんわ","p":"Nomen"},{"s":"これから","r":"これから","p":"Nomen"},{"s":"今晩","r":"こんばん","p":"Nomen"},{"s":"今週","r":"こんしゅう","p":"Nomen"},{"s":"六日","r":"むいか","p":"Nomen"},{"s":"土曜日","r":"どようび","p":"Nomen"},{"s":"日曜日","r":"にちようび","p":"Nomen"},{"s":"昼","r":"ひる","p":"Nomen"},{"s":"時","r":"とき","p":"Nomen"},{"s":"時計","r":"とけい","p":"Nomen"},{"s":"晩","r":"ばん","p":"Nomen"},{"s":"曜日","r":"ようび","p":"Nomen"},{"s":"月曜日","r":"げつようび","p":"Nomen"},{"s":"朝","r":"あさ","p":"Nomen"},{"s":"木曜日","r":"もくようび","p":"Nomen"},{"s":"水曜日","r":"すいようび","p":"Nomen"},{"s":"火曜日","r":"かようび","p":"Nomen"},{"s":"終わり","r":"おわり","p":"Nomen"},{"s":"金曜日","r":"きんようび","p":"Nomen"},{"s":"そば","r":"そば","p":"Nomen"},{"s":"天気","r":"てんき","p":"Nomen"},{"s":"後ろ","r":"うしろ","p":"Nomen"},{"s":"雨","r":"あめ","p":"Nomen"},{"s":"嫌い","r":"きらい","p":"Na-Adjektiv"},{"s":"駄目","r":"だめ","p":"Na-Adjektiv"},{"s":"まずい","r":"まずい","p":"Adjektiv"},{"s":"優しい","r":"やさしい","p":"Adjektiv"},{"s":"太い","r":"ふとい","p":"Adjektiv"},{"s":"嬉しい","r":"うれしい","p":"Adjektiv"},{"s":"悲しい","r":"かなしい","p":"Adjektiv"},{"s":"暑い","r":"あつい","p":"Adjektiv"},{"s":"楽しい","r":"たのしい","p":"Adjektiv"},{"s":"汚い","r":"きたない","p":"Adjektiv"},{"s":"無い","r":"ない","p":"Adjektiv"},{"s":"甘い","r":"あまい","p":"Adjektiv"},{"s":"痛い","r":"いたい","p":"Adjektiv"},{"s":"黄色い","r":"きいろい","p":"Adjektiv"},{"s":"茶色","r":"ちゃいろ","p":"Nomen"},{"s":"どうして","r":"どうして","p":"Fragewort"},{"s":"あれ","r":"あれ","p":"Pronomen"},{"s":"こっち","r":"こっち","p":"Pronomen"},{"s":"ちょっと","r":"ちょっと","p":"Adverb"},{"s":"多分","r":"たぶん","p":"Adverb"},{"s":"三","r":"さん","p":"Nomen"},{"s":"二","r":"に","p":"Nomen"},{"s":"二つ","r":"ふたつ","p":"Nomen"},{"s":"十","r":"じゅう","p":"Nomen"},{"s":"千","r":"せん","p":"Nomen"},{"s":"四","r":"よん","p":"Nomen"},{"s":"日","r":"にち","p":"Nomen"},{"s":"ある","r":"ある","p":"Verb"},{"s":"休む","r":"やすむ","p":"Verb"},{"s":"動く","r":"うごく","p":"Verb"},{"s":"来る","r":"くる","p":"Verb"},{"s":"止める","r":"やめる","p":"Verb"},{"s":"違う","r":"ちがう","p":"Verb"},{"s":"閉まる","r":"しまる","p":"Verb"},{"s":"見える","r":"みえる","p":"Verb"},{"s":"答える","r":"こたえる","p":"Verb"},{"s":"出す","r":"だす","p":"Verb"},{"s":"見つかる","r":"みつかる","p":"Verb"},{"s":"口","r":"くち","p":"Nomen"},{"s":"手","r":"て","p":"Nomen"},{"s":"目","r":"め","p":"Nomen"},{"s":"お兄さん","r":"おにいさん","p":"Nomen"},{"s":"お手洗い","r":"おてあらい","p":"Nomen"},{"s":"ご主人","r":"ごしゅじん","p":"Nomen"},{"s":"人","r":"ひと","p":"Nomen"},{"s":"大人","r":"おとな","p":"Nomen"},{"s":"女","r":"おんな","p":"Nomen"},{"s":"妹","r":"いもうと","p":"Nomen"},{"s":"妻","r":"つま","p":"Nomen"},{"s":"弟","r":"おとうと","p":"Nomen"},{"s":"母","r":"はは","p":"Nomen"},{"s":"父","r":"ちち","p":"Nomen"},{"s":"男","r":"おとこ","p":"Nomen"},{"s":"店","r":"みせ","p":"Nomen"},{"s":"線","r":"せん","p":"Nomen"},{"s":"高校生","r":"こうこうせい","p":"Nomen"},{"s":"お願い","r":"おねがい","p":"Verbalnomen"},{"s":"時々","r":"ときどき","p":"Adverb"},{"s":"一日","r":"ついたち","p":"Nomen"},{"s":"七日","r":"なのか","p":"Nomen"},{"s":"三日","r":"みっか","p":"Nomen"},{"s":"九日","r":"ここのか","p":"Nomen"},{"s":"二十日","r":"はつか","p":"Nomen"},{"s":"二日","r":"ふつか","p":"Nomen"},{"s":"五日","r":"いつか","p":"Nomen"},{"s":"八日","r":"ようか","p":"Nomen"},{"s":"十日","r":"とおか","p":"Nomen"},{"s":"四日","r":"よっか","p":"Nomen"},{"s":"夏","r":"なつ","p":"Nomen"},{"s":"夜","r":"よる","p":"Nomen"},{"s":"昨日","r":"きのう","p":"Nomen"},{"s":"来年","r":"らいねん","p":"Nomen"},{"s":"上","r":"うえ","p":"Nomen"},{"s":"下","r":"した","p":"Nomen"},{"s":"先","r":"さき","p":"Nomen"},{"s":"前","r":"まえ","p":"Nomen"},{"s":"左","r":"ひだり","p":"Nomen"},{"s":"方","r":"ほう","p":"Nomen"},{"s":"月","r":"つき","p":"Nomen"},{"s":"花","r":"はな","p":"Nomen"},{"s":"辺","r":"へん","p":"Nomen"},{"s":"道","r":"みち","p":"Nomen"},{"s":"駅","r":"えき","p":"Nomen"},{"s":"上手","r":"じょうず","p":"Na-Adjektiv"},{"s":"大丈夫","r":"だいじょうぶ","p":"Na-Adjektiv"},{"s":"綺麗","r":"きれい","p":"Na-Adjektiv"},{"s":"いい","r":"いい","p":"Adjektiv"},{"s":"冷たい","r":"つめたい","p":"Adjektiv"},{"s":"大きい","r":"おおきい","p":"Adjektiv"},{"s":"寒い","r":"さむい","p":"Adjektiv"},{"s":"小さい","r":"ちいさい","p":"Adjektiv"},{"s":"強い","r":"つよい","p":"Adjektiv"},{"s":"悪い","r":"わるい","p":"Adjektiv"},{"s":"易しい","r":"やさしい","p":"Adjektiv"},{"s":"暖かい","r":"あたたかい","p":"Adjektiv"},{"s":"欲しい","r":"ほしい","p":"Adjektiv"},{"s":"細い","r":"ほそい","p":"Adjektiv"},{"s":"美味しい","r":"おいしい","p":"Adjektiv"},{"s":"辛い","r":"からい","p":"Adjektiv"},{"s":"酸っぱい","r":"すっぱい","p":"Adjektiv"},{"s":"何","r":"なに","p":"Fragewort"},{"s":"僕","r":"ぼく","p":"Nomen"},{"s":"自分","r":"じぶん","p":"Nomen"},{"s":"あそこ","r":"あそこ","p":"Pronomen"},{"s":"彼","r":"かれ","p":"Pronomen"},{"s":"いっぱい","r":"いっぱい","p":"Adverb"},{"s":"ゆっくり","r":"ゆっくり","p":"Adverb"},{"s":"本当に","r":"ほんとうに","p":"Adverb"},{"s":"ため","r":"ため","p":"Nomen"},{"s":"他","r":"ほか","p":"Nomen"},{"s":"以外","r":"いがい","p":"Nomen"},{"s":"一人","r":"ひとり","p":"Nomen"},{"s":"七","r":"なな","p":"Nomen"},{"s":"七つ","r":"ななつ","p":"Nomen"},{"s":"万","r":"まん","p":"Nomen"},{"s":"三つ","r":"みっつ","p":"Nomen"},{"s":"九","r":"きゅう","p":"Nomen"},{"s":"九つ","r":"ここのつ","p":"Nomen"},{"s":"五","r":"ご","p":"Nomen"},{"s":"五つ","r":"いつつ","p":"Nomen"},{"s":"八","r":"はち","p":"Nomen"},{"s":"八つ","r":"やっつ","p":"Nomen"},{"s":"六","r":"ろく","p":"Nomen"},{"s":"六つ","r":"むっつ","p":"Nomen"},{"s":"四","r":"し","p":"Nomen"},{"s":"四つ","r":"よっつ","p":"Nomen"},{"s":"百","r":"ひゃく","p":"Nomen"},{"s":"もつ","r":"もつ","p":"Verb"},{"s":"上がる","r":"あがる","p":"Verb"},{"s":"下りる","r":"おりる","p":"Verb"},{"s":"勝つ","r":"かつ","p":"Verb"},{"s":"増える","r":"ふえる","p":"Verb"},{"s":"変わる","r":"かわる","p":"Verb"},{"s":"建てる","r":"たてる","p":"Verb"},{"s":"比べる","r":"くらべる","p":"Verb"},{"s":"消える","r":"きえる","p":"Verb"},{"s":"減る","r":"へる","p":"Verb"},{"s":"生まれる","r":"うまれる","p":"Verb"},{"s":"目立つ","r":"めだつ","p":"Verb"},{"s":"続ける","r":"つづける","p":"Verb"},{"s":"繰り返す","r":"くりかえす","p":"Verb"},{"s":"調べる","r":"しらべる","p":"Verb"},{"s":"負ける","r":"まける","p":"Verb"},{"s":"進める","r":"すすめる","p":"Verb"},{"s":"開く","r":"あく","p":"Verb"},{"s":"治る","r":"なおる","p":"Verb"},{"s":"選ぶ","r":"えらぶ","p":"Verb"},{"s":"集める","r":"あつめる","p":"Verb"},{"s":"声","r":"こえ","p":"Nomen"},{"s":"病院","r":"びょういん","p":"Nomen"},{"s":"薬","r":"くすり","p":"Nomen"},{"s":"メニュー","r":"メニュー","p":"Nomen"},{"s":"砂糖","r":"さとう","p":"Nomen"},{"s":"お巡りさん","r":"おまわりさん","p":"Nomen"},{"s":"お祖父さん","r":"おじいさん","p":"Nomen"},{"s":"ティッシュ","r":"ティッシュ","p":"Nomen"},{"s":"家","r":"いえ","p":"Nomen"},{"s":"家族","r":"かぞく","p":"Nomen"},{"s":"日記","r":"にっき","p":"Nomen"},{"s":"椅子","r":"いす","p":"Nomen"},{"s":"歯ブラシ","r":"はブラシ","p":"Nomen"},{"s":"目覚まし時計","r":"めざましどけい","p":"Nomen"},{"s":"相手","r":"あいて","p":"Nomen"},{"s":"財布","r":"さいふ","p":"Nomen"},{"s":"電気","r":"でんき","p":"Nomen"},{"s":"洗う","r":"あらう","p":"Verb"},{"s":"クラス","r":"クラス","p":"Nomen"},{"s":"コンピューター","r":"コンピューター","p":"Nomen"},{"s":"システム","r":"システム","p":"Nomen"},{"s":"テレビ","r":"テレビ","p":"Nomen"},{"s":"パスポート","r":"パスポート","p":"Nomen"},{"s":"パート","r":"パート","p":"Nomen"},{"s":"プログラム","r":"プログラム","p":"Nomen"},{"s":"レシート","r":"レシート","p":"Nomen"},{"s":"世界","r":"せかい","p":"Nomen"},{"s":"休み","r":"やすみ","p":"Nomen"},{"s":"会社","r":"かいしゃ","p":"Nomen"},{"s":"住所","r":"じゅうしょ","p":"Nomen"},{"s":"写真","r":"しゃしん","p":"Nomen"},{"s":"切手","r":"きって","p":"Nomen"},{"s":"力","r":"ちから","p":"Nomen"},{"s":"問題","r":"もんだい","p":"Nomen"},{"s":"売り切れ","r":"うりきれ","p":"Nomen"},{"s":"外国","r":"がいこく","p":"Nomen"},{"s":"意味","r":"いみ","p":"Nomen"},{"s":"意見","r":"いけん","p":"Nomen"},{"s":"文章","r":"ぶんしょう","p":"Nomen"},{"s":"新聞","r":"しんぶん","p":"Nomen"},{"s":"社会","r":"しゃかい","p":"Nomen"},{"s":"話","r":"はなし","p":"Nomen"},{"s":"郵便局","r":"ゆうびんきょく","p":"Nomen"},{"s":"銀行","r":"ぎんこう","p":"Nomen"},{"s":"予定","r":"よてい","p":"Verbalnomen"},{"s":"生活","r":"せいかつ","p":"Verbalnomen"},{"s":"買い物","r":"かいもの","p":"Verbalnomen"},{"s":"電話","r":"でんわ","p":"Verbalnomen"},{"s":"今回","r":"こんかい","p":"Nomen"},{"s":"昨年","r":"さくねん","p":"Nomen"},{"s":"最近","r":"さいきん","p":"Nomen"},{"s":"バス","r":"バス","p":"Nomen"},{"s":"事故","r":"じこ","p":"Nomen"},{"s":"川","r":"かわ","p":"Nomen"},{"s":"十分","r":"じゅうぶん","p":"Na-Adjektiv"},{"s":"必要","r":"ひつよう","p":"Na-Adjektiv"},{"s":"厚い","r":"あつい","p":"Adjektiv"},{"s":"可愛い","r":"かわいい","p":"Adjektiv"},{"s":"忙しい","r":"いそがしい","p":"Adjektiv"},{"s":"暗い","r":"くらい","p":"Adjektiv"},{"s":"涼しい","r":"すずしい","p":"Adjektiv"},{"s":"薄い","r":"うすい","p":"Adjektiv"},{"s":"青い","r":"あおい","p":"Adjektiv"},{"s":"黒い","r":"くろい","p":"Adjektiv"},{"s":"種類","r":"しゅるい","p":"Nomen"},{"s":"こちら","r":"こちら","p":"Pronomen"},{"s":"これら","r":"これら","p":"Pronomen"},{"s":"あまり","r":"あまり","p":"Adverb"},{"s":"ほとんど","r":"ほとんど","p":"Adverb"},{"s":"まず","r":"まず","p":"Adverb"},{"s":"初めて","r":"はじめて","p":"Adverb"},{"s":"ただ","r":"ただ","p":"Nomen"},{"s":"まま","r":"まま","p":"Nomen"},{"s":"多く","r":"おおく","p":"Nomen"},{"s":"いくつ","r":"いくつ","p":"Fragewort"},{"s":"ドル","r":"ドル","p":"Nomen"},{"s":"以上","r":"いじょう","p":"Nomen"},{"s":"氏名","r":"しめい","p":"Nomen"},{"s":"今夜","r":"こんや","p":"Nomen"},{"s":"夜中","r":"よなか","p":"Nomen"},{"s":"来週","r":"らいしゅう","p":"Nomen"},{"s":"誰か","r":"だれか","p":"Pronomen"},{"s":"何","r":"なん","p":"Fragewort"},{"s":"今朝","r":"けさ","p":"Nomen"},{"s":"寿司","r":"すし","p":"Nomen"},{"s":"履く","r":"はく","p":"Verb"},{"s":"おじさん","r":"おじさん","p":"Nomen"},{"s":"おばさん","r":"おばさん","p":"Nomen"},{"s":"お祖母さん","r":"おばあさん","p":"Nomen"},{"s":"いとこ","r":"いとこ","p":"Nomen"},{"s":"辞書","r":"じしょ","p":"Nomen"},{"s":"朝ご飯","r":"あさごはん","p":"Nomen"},{"s":"白","r":"しろ","p":"Nomen"},{"s":"どっち","r":"どっち","p":"Fragewort"},{"s":"そっち","r":"そっち","p":"Pronomen"},{"s":"明日","r":"あした","p":"Nomen"},{"s":"明後日","r":"あさって","p":"Nomen"},{"s":"一昨日","r":"おととい","p":"Nomen"},{"s":"庭","r":"にわ","p":"Nomen"},{"s":"左側","r":"ひだりがわ","p":"Nomen"},{"s":"右側","r":"みぎがわ","p":"Nomen"},{"s":"指","r":"ゆび","p":"Nomen"},{"s":"眼鏡","r":"めがね","p":"Nomen"},{"s":"鞄","r":"かばん","p":"Nomen"},{"s":"あっち","r":"あっち","p":"Pronomen"},{"s":"大人しい","r":"おとなしい","p":"Adjektiv"},{"s":"下手","r":"へた","p":"Na-Adjektiv"},{"s":"厳しい","r":"きびしい","p":"Adjektiv"},{"s":"一人で","r":"ひとりで","p":"Adverb"},{"s":"答え","r":"こたえ","p":"Nomen"},{"s":"この頃","r":"このごろ","p":"Nomen"},{"s":"残念","r":"ざんねん","p":"Na-Adjektiv"},{"s":"仕舞う","r":"しまう","p":"Verb"},{"s":"心配","r":"しんぱい","p":"Verbalnomen"},{"s":"外","r":"そと","p":"Nomen"},{"s":"大切","r":"たいせつ","p":"Na-Adjektiv"},{"s":"ちょうど","r":"ちょうど","p":"Adverb"},{"s":"助ける","r":"たすける","p":"Verb"},{"s":"勤める","r":"つとめる","p":"Verb"},{"s":"連れていく","r":"つれていく","p":"Verb"},{"s":"丈夫","r":"じょうぶ","p":"Na-Adjektiv"},{"s":"賑やか","r":"にぎやか","p":"Na-Adjektiv"},{"s":"眠い","r":"ねむい","p":"Adjektiv"},{"s":"山","r":"やま","p":"Nomen"},{"s":"橋","r":"はし","p":"Nomen"},{"s":"止まる","r":"とまる","p":"Verb"},{"s":"降る","r":"ふる","p":"Verb"},{"s":"本当","r":"ほんとう","p":"Nomen"},{"s":"町","r":"まち","p":"Nomen"},{"s":"お菓子","r":"おかし","p":"Nomen"},{"s":"緩い","r":"ゆるい","p":"Adjektiv"},{"s":"良い","r":"よい","p":"Adjektiv"},{"s":"ようこそ","r":"ようこそ","p":"Adverb"},{"s":"お土産","r":"おみやげ","p":"Nomen"},{"s":"両親","r":"りょうしん","p":"Nomen"},{"s":"ウェーター","r":"ウェーター","p":"Nomen"},{"s":"ウェートレス","r":"ウェートレス","p":"Nomen"},{"s":"絶対に","r":"ぜったいに","p":"Adverb"},{"s":"ごちそう","r":"ごちそう","p":"Nomen"},{"s":"フォーク","r":"フォーク","p":"Nomen"},{"s":"スプーン","r":"スプーン","p":"Nomen"},{"s":"瓶","r":"びん","p":"Nomen"},{"s":"付く","r":"つく","p":"Verb"},{"s":"醤油","r":"しょうゆ","p":"Nomen"},{"s":"茶碗","r":"ちゃわん","p":"Nomen"},{"s":"決める","r":"きめる","p":"Verb"},{"s":"感じる","r":"かんじる","p":"Verb"},{"s":"生きる","r":"いきる","p":"Verb"},{"s":"動かす","r":"うごかす","p":"Verb"},{"s":"壊れる","r":"こわれる","p":"Verb"},{"s":"復習","r":"ふくしゅう","p":"Verbalnomen"},{"s":"眉","r":"まゆ","p":"Nomen"},{"s":"客","r":"きゃく","p":"Nomen"},{"s":"机","r":"つくえ","p":"Nomen"},{"s":"風呂","r":"ふろ","p":"Nomen"},{"s":"湯","r":"ゆ","p":"Nomen"},{"s":"ぬるい","r":"ぬるい","p":"Adjektiv"},{"s":"風邪薬","r":"かぜぐすり","p":"Nomen"},{"s":"靴下","r":"くつした","p":"Nomen"},{"s":"たばこ","r":"たばこ","p":"Nomen"},{"s":"アイスコーヒー","r":"アイスコーヒー","p":"Nomen"},{"s":"天ぷら","r":"てんぷら","p":"Nomen"},{"s":"肉","r":"にく","p":"Nomen"},{"s":"昨夜","r":"ゆうべ","p":"Nomen"},{"s":"流行る","r":"はやる","p":"Verb"},{"s":"連れてくる","r":"つれてくる","p":"Verb"},{"s":"方","r":"かた","p":"Nomen"},{"s":"零","r":"れい","p":"Nomen"},{"s":"雲","r":"くも","p":"Nomen"},{"s":"空","r":"そら","p":"Nomen"},{"s":"人気","r":"にんき","p":"Nomen"},{"s":"兄さん","r":"にいさん","p":"Nomen"},{"s":"姉さん","r":"ねえさん","p":"Nomen"},{"s":"平成","r":"へいせい","p":"Nomen"},{"s":"毎月","r":"まいつき","p":"Nomen"},{"s":"半日","r":"はんにち","p":"Nomen"},{"s":"半月","r":"はんつき","p":"Nomen"},{"s":"なるほど","r":"なるほど","p":"Adverb"},{"s":"つまり","r":"つまり","p":"Adverb"},{"s":"そのまま","r":"そのまま","p":"Adverb"},{"s":"はっきり","r":"はっきり","p":"Adverb"},{"s":"大変","r":"たいへん","p":"Na-Adjektiv"},{"s":"簡単","r":"かんたん","p":"Na-Adjektiv"},{"s":"似ている","r":"にている","p":"Verb"},{"s":"驚く","r":"おどろく","p":"Verb"},{"s":"嫌","r":"いや","p":"Na-Adjektiv"},{"s":"喧嘩","r":"けんか","p":"Verbalnomen"},{"s":"遅れる","r":"おくれる","p":"Verb"},{"s":"にんじん","r":"にんじん","p":"Nomen"},{"s":"ジャガイモ","r":"ジャガイモ","p":"Nomen"},{"s":"ナス","r":"ナス","p":"Nomen"},{"s":"やかん","r":"やかん","p":"Nomen"},{"s":"話し合う","r":"はなしあう","p":"Verb"},{"s":"残す","r":"のこす","p":"Verb"},{"s":"ごちそうする","r":"ごちそうする","p":"Verb"},{"s":"合う","r":"あう","p":"Verb"},{"s":"当たる","r":"あたる","p":"Verb"},{"s":"集まる","r":"あつまる","p":"Verb"},{"s":"場所","r":"ばしょ","p":"Nomen"},{"s":"海","r":"うみ","p":"Nomen"},{"s":"少年","r":"しょうねん","p":"Nomen"},{"s":"孫","r":"まご","p":"Nomen"},{"s":"生徒","r":"せいと","p":"Nomen"},{"s":"高校","r":"こうこう","p":"Nomen"},{"s":"年上","r":"としうえ","p":"Nomen"},{"s":"卒業","r":"そつぎょう","p":"Verbalnomen"},{"s":"運動","r":"うんどう","p":"Verbalnomen"},{"s":"選手","r":"せんしゅ","p":"Nomen"},{"s":"映画","r":"えいが","p":"Nomen"},{"s":"英語","r":"えいご","p":"Nomen"},{"s":"手紙","r":"てがみ","p":"Nomen"},{"s":"動物","r":"どうぶつ","p":"Nomen"},{"s":"音","r":"おと","p":"Nomen"},{"s":"海外","r":"かいがい","p":"Nomen"},{"s":"外国人","r":"がいこくじん","p":"Nomen"},{"s":"帰国","r":"きこく","p":"Verbalnomen"},{"s":"彼ら","r":"かれら","p":"Pronomen"},{"s":"機械","r":"きかい","p":"Nomen"},{"s":"基本","r":"きほん","p":"Nomen"},{"s":"今度","r":"こんど","p":"Nomen"},{"s":"最後","r":"さいご","p":"Nomen"},{"s":"最初","r":"さいしょ","p":"Nomen"},{"s":"準備","r":"じゅんび","p":"Verbalnomen"},{"s":"進む","r":"すすむ","p":"Verb"},{"s":"直接","r":"ちょくせつ","p":"Adverb"},{"s":"特に","r":"とくに","p":"Adverb"},{"s":"届く","r":"とどく","p":"Verb"},{"s":"なぜ","r":"なぜ","p":"Fragewort"},{"s":"並ぶ","r":"ならぶ","p":"Verb"},{"s":"運ぶ","r":"はこぶ","p":"Verb"},{"s":"直す","r":"なおす","p":"Verb"},{"s":"反対","r":"はんたい","p":"Verbalnomen"},{"s":"場合","r":"ばあい","p":"Nomen"},{"s":"詳しい","r":"くわしい","p":"Adjektiv"},{"s":"いたずら","r":"いたずら","p":"Verbalnomen"},{"s":"お祝い","r":"おいわい","p":"Verbalnomen"},{"s":"くし","r":"くし","p":"Nomen"},{"s":"こぼれる","r":"こぼれる","p":"Verb"},{"s":"伝える","r":"つたえる","p":"Verb"},{"s":"膝","r":"ひざ","p":"Nomen"},{"s":"肘","r":"ひじ","p":"Nomen"},{"s":"枕","r":"まくら","p":"Nomen"},{"s":"建物","r":"たてもの","p":"Nomen"},{"s":"道路","r":"どうろ","p":"Nomen"},{"s":"四つ角","r":"よつかど","p":"Nomen"},{"s":"曲がり角","r":"まがりかど","p":"Nomen"},{"s":"警察","r":"けいさつ","p":"Nomen"},{"s":"空気","r":"くうき","p":"Nomen"},{"s":"スポーツ","r":"スポーツ","p":"Nomen"},{"s":"チャンス","r":"チャンス","p":"Nomen"},{"s":"クリーニング","r":"クリーニング","p":"Verbalnomen"},{"s":"サービス","r":"サービス","p":"Verbalnomen"},{"s":"グループ","r":"グループ","p":"Nomen"},{"s":"自宅","r":"じたく","p":"Nomen"},{"s":"家庭","r":"かてい","p":"Nomen"},{"s":"期間","r":"きかん","p":"Nomen"},{"s":"年度","r":"ねんど","p":"Nomen"},{"s":"経験","r":"けいけん","p":"Verbalnomen"},{"s":"安全","r":"あんぜん","p":"Na-Adjektiv"},{"s":"危険","r":"きけん","p":"Na-Adjektiv"},{"s":"注意","r":"ちゅうい","p":"Verbalnomen"},{"s":"成功","r":"せいこう","p":"Verbalnomen"},{"s":"努力","r":"どりょく","p":"Verbalnomen"},{"s":"説明","r":"せつめい","p":"Verbalnomen"},{"s":"地震","r":"じしん","p":"Nomen"},{"s":"手術","r":"しゅじゅつ","p":"Verbalnomen"},{"s":"火傷","r":"やけど","p":"Verbalnomen"},{"s":"課題","r":"かだい","p":"Nomen"},{"s":"子","r":"こ","p":"Nomen"},{"s":"確認","r":"かくにん","p":"Verbalnomen"},{"s":"実際","r":"じっさい","p":"Nomen"},{"s":"国際","r":"こくさい","p":"Nomen"},{"s":"会議","r":"かいぎ","p":"Verbalnomen"},{"s":"提案","r":"ていあん","p":"Verbalnomen"},{"s":"事務所","r":"じむしょ","p":"Nomen"},{"s":"教授","r":"きょうじゅ","p":"Nomen"},{"s":"世紀","r":"せいき","p":"Nomen"},{"s":"あちこち","r":"あちこち","p":"Adverb"},{"s":"そちら","r":"そちら","p":"Pronomen"},{"s":"あちら","r":"あちら","p":"Pronomen"},{"s":"もし","r":"もし","p":"Adverb"},{"s":"うるさい","r":"うるさい","p":"Adjektiv"},{"s":"固い","r":"かたい","p":"Adjektiv"},{"s":"深い","r":"ふかい","p":"Adjektiv"},{"s":"面白い","r":"おもしろい","p":"Adjektiv"},{"s":"全く","r":"まったく","p":"Adverb"},{"s":"半分","r":"はんぶん","p":"Nomen"},{"s":"普通","r":"ふつう","p":"Nomen"},{"s":"分","r":"ぶん","p":"Nomen"},{"s":"文化","r":"ぶんか","p":"Nomen"},{"s":"毎日","r":"まいにち","p":"Nomen"},{"s":"気を付ける","r":"きをつける","p":"Phrase"},{"s":"守る","r":"まもる","p":"Verb"},{"s":"もちろん","r":"もちろん","p":"Adverb"},{"s":"やはり","r":"やはり","p":"Adverb"},{"s":"いくら","r":"いくら","p":"Fragewort"},{"s":"よろしく","r":"よろしく","p":"Adverb"},{"s":"どなた","r":"どなた","p":"Fragewort"},{"s":"許す","r":"ゆるす","p":"Verb"},{"s":"分ける","r":"わける","p":"Verb"},{"s":"自然","r":"しぜん","p":"Nomen"},{"s":"アパート","r":"アパート","p":"Nomen"},{"s":"ホテル","r":"ホテル","p":"Nomen"},{"s":"パソコン","r":"パソコン","p":"Nomen"},{"s":"うまい","r":"うまい","p":"Adjektiv"},{"s":"明るい","r":"あかるい","p":"Adjektiv"},{"s":"急ぐ","r":"いそぐ","p":"Verb"},{"s":"歌","r":"うた","p":"Nomen"},{"s":"中学校","r":"ちゅうがっこう","p":"Nomen"},{"s":"テスト","r":"テスト","p":"Verbalnomen"},{"s":"ポスト","r":"ポスト","p":"Nomen"},{"s":"ハンカチ","r":"ハンカチ","p":"Nomen"},{"s":"髪","r":"かみ","p":"Nomen"},{"s":"帽子","r":"ぼうし","p":"Nomen"},{"s":"被る","r":"かぶる","p":"Verb"},{"s":"ブラウス","r":"ブラウス","p":"Nomen"},{"s":"週末","r":"しゅうまつ","p":"Nomen"},{"s":"先週","r":"せんしゅう","p":"Nomen"},{"s":"再来週","r":"さらいしゅう","p":"Nomen"},{"s":"いつか","r":"いつか","p":"Adverb"},{"s":"宿題","r":"しゅくだい","p":"Nomen"},{"s":"鍵","r":"かぎ","p":"Nomen"},{"s":"傘","r":"かさ","p":"Nomen"},{"s":"乗り換える","r":"のりかえる","p":"Verb"},{"s":"向かう","r":"むかう","p":"Verb"},{"s":"本屋","r":"ほんや","p":"Nomen"},{"s":"お茶","r":"おちゃ","p":"Nomen"},{"s":"改札口","r":"かいさつぐち","p":"Nomen"},{"s":"晴れ","r":"はれ","p":"Nomen"},{"s":"バス停","r":"バスてい","p":"Nomen"},{"s":"曇り","r":"くもり","p":"Nomen"},{"s":"塩","r":"しお","p":"Nomen"},{"s":"たくさん","r":"たくさん","p":"Adverb"},{"s":"大嫌い","r":"だいきらい","p":"Na-Adjektiv"},{"s":"中","r":"なか","p":"Nomen"},{"s":"二階","r":"にかい","p":"Nomen"},{"s":"無くす","r":"なくす","p":"Verb"},{"s":"まあまあ","r":"まあまあ","p":"Adverb"},{"s":"黄色","r":"きいろ","p":"Nomen"},{"s":"ランチ","r":"ランチ","p":"Nomen"},{"s":"魚","r":"さかな","p":"Nomen"},{"s":"味","r":"あじ","p":"Nomen"},{"s":"りんご","r":"りんご","p":"Nomen"},{"s":"みかん","r":"みかん","p":"Nomen"},{"s":"皿","r":"さら","p":"Nomen"},{"s":"コーヒー","r":"コーヒー","p":"Nomen"},{"s":"コップ","r":"コップ","p":"Nomen"},{"s":"二人","r":"ふたり","p":"Nomen"},{"s":"止む","r":"やむ","p":"Verb"},{"s":"九","r":"く","p":"Nomen"},{"s":"昼間","r":"ひるま","p":"Nomen"},{"s":"いつ頃","r":"いつごろ","p":"Fragewort"},{"s":"字","r":"じ","p":"Nomen"},{"s":"七","r":"しち","p":"Nomen"},{"s":"お釣り","r":"おつり","p":"Nomen"},{"s":"名字","r":"みょうじ","p":"Nomen"},{"s":"おじ","r":"おじ","p":"Nomen"},{"s":"おば","r":"おば","p":"Nomen"},{"s":"祖父","r":"そふ","p":"Nomen"},{"s":"祖母","r":"そぼ","p":"Nomen"},{"s":"大事","r":"だいじ","p":"Na-Adjektiv"},{"s":"見方","r":"みかた","p":"Nomen"},{"s":"鳥","r":"とり","p":"Nomen"},{"s":"犬","r":"いぬ","p":"Nomen"},{"s":"返事","r":"へんじ","p":"Verbalnomen"},{"s":"また","r":"また","p":"Adverb"},{"s":"年間","r":"ねんかん","p":"Nomen"},{"s":"青","r":"あお","p":"Nomen"},{"s":"赤","r":"あか","p":"Nomen"},{"s":"信号","r":"しんごう","p":"Nomen"},{"s":"非常に","r":"ひじょうに","p":"Adverb"},{"s":"複雑","r":"ふくざつ","p":"Na-Adjektiv"},{"s":"平和","r":"へいわ","p":"Na-Adjektiv"},{"s":"回る","r":"まわる","p":"Verb"},{"s":"若者","r":"わかもの","p":"Nomen"},{"s":"雪","r":"ゆき","p":"Nomen"},{"s":"思い出す","r":"おもいだす","p":"Verb"},{"s":"聞こえる","r":"きこえる","p":"Verb"},{"s":"借りる","r":"かりる","p":"Verb"},{"s":"返す","r":"かえす","p":"Verb"},{"s":"受け取る","r":"うけとる","p":"Verb"},{"s":"捨てる","r":"すてる","p":"Verb"},{"s":"一緒","r":"いっしょ","p":"Verbalnomen"},{"s":"遊び","r":"あそび","p":"Nomen"},{"s":"移す","r":"うつす","p":"Verb"},{"s":"大きさ","r":"おおきさ","p":"Nomen"},{"s":"考え","r":"かんがえ","p":"Nomen"},{"s":"空港","r":"くうこう","p":"Nomen"},{"s":"出発","r":"しゅっぱつ","p":"Verbalnomen"},{"s":"地図","r":"ちず","p":"Nomen"},{"s":"運転","r":"うんてん","p":"Verbalnomen"},{"s":"降りる","r":"おりる","p":"Verb"},{"s":"ガス","r":"ガス","p":"Nomen"},{"s":"必ず","r":"かならず","p":"Adverb"},{"s":"カメラ","r":"カメラ","p":"Nomen"},{"s":"通う","r":"かよう","p":"Verb"},{"s":"急に","r":"きゅうに","p":"Adverb"},{"s":"サラリーマン","r":"サラリーマン","p":"Nomen"},{"s":"給料","r":"きゅうりょう","p":"Nomen"},{"s":"曲","r":"きょく","p":"Nomen"},{"s":"切れる","r":"きれる","p":"Verb"},{"s":"正しい","r":"ただしい","p":"Adjektiv"},{"s":"苦しい","r":"くるしい","p":"Adjektiv"},{"s":"細かい","r":"こまかい","p":"Adjektiv"},{"s":"静か","r":"しずか","p":"Na-Adjektiv"},{"s":"健康","r":"けんこう","p":"Na-Adjektiv"},{"s":"ゴルフ","r":"ゴルフ","p":"Nomen"},{"s":"コース","r":"コース","p":"Nomen"},{"s":"頼む","r":"たのむ","p":"Verb"},{"s":"困る","r":"こまる","p":"Verb"},{"s":"ずっと","r":"ずっと","p":"Adverb"},{"s":"例えば","r":"たとえば","p":"Adverb"},{"s":"つもり","r":"つもり","p":"Nomen"},{"s":"しばらく","r":"しばらく","p":"Adverb"},{"s":"紹介","r":"しょうかい","p":"Verbalnomen"},{"s":"小学校","r":"しょうがっこう","p":"Nomen"},{"s":"公園","r":"こうえん","p":"Nomen"},{"s":"中学","r":"ちゅうがく","p":"Nomen"},{"s":"成績","r":"せいせき","p":"Nomen"},{"s":"教科書","r":"きょうかしょ","p":"Nomen"},{"s":"席","r":"せき","p":"Nomen"},{"s":"教室","r":"きょうしつ","p":"Nomen"},{"s":"教師","r":"きょうし","p":"Nomen"},{"s":"試験","r":"しけん","p":"Verbalnomen"},{"s":"合格","r":"ごうかく","p":"Verbalnomen"},{"s":"数学","r":"すうがく","p":"Nomen"},{"s":"数字","r":"すうじ","p":"Nomen"},{"s":"音楽","r":"おんがく","p":"Nomen"},{"s":"食事","r":"しょくじ","p":"Verbalnomen"},{"s":"壁","r":"かべ","p":"Nomen"},{"s":"信じる","r":"しんじる","p":"Verb"},{"s":"育てる","r":"そだてる","p":"Verb"},{"s":"倒れる","r":"たおれる","p":"Verb"},{"s":"落とす","r":"おとす","p":"Verb"},{"s":"代わる","r":"かわる","p":"Verb"},{"s":"タクシー","r":"タクシー","p":"Nomen"},{"s":"確か","r":"たしか","p":"Na-Adjektiv"},{"s":"立てる","r":"たてる","p":"Verb"},{"s":"中学生","r":"ちゅうがくせい","p":"Nomen"},{"s":"売れる","r":"うれる","p":"Verb"},{"s":"着く","r":"つく","p":"Verb"},{"s":"決まる","r":"きまる","p":"Verb"},{"s":"飾る","r":"かざる","p":"Verb"},{"s":"殺す","r":"ころす","p":"Verb"},{"s":"下げる","r":"さげる","p":"Verb"},{"s":"贈る","r":"おくる","p":"Verb"},{"s":"訪ねる","r":"たずねる","p":"Verb"},{"s":"打つ","r":"うつ","p":"Verb"},{"s":"相談","r":"そうだん","p":"Verbalnomen"},{"s":"玄関","r":"げんかん","p":"Nomen"},{"s":"兄弟","r":"きょうだい","p":"Nomen"},{"s":"長男","r":"ちょうなん","p":"Nomen"},{"s":"高さ","r":"たかさ","p":"Nomen"},{"s":"用","r":"よう","p":"Nomen"},{"s":"時代","r":"じだい","p":"Nomen"},{"s":"位置","r":"いち","p":"Verbalnomen"},{"s":"季節","r":"きせつ","p":"Nomen"},{"s":"穴","r":"あな","p":"Nomen"},{"s":"裏","r":"うら","p":"Nomen"},{"s":"島","r":"しま","p":"Nomen"},{"s":"海岸","r":"かいがん","p":"Nomen"},{"s":"ガラス","r":"ガラス","p":"Nomen"},{"s":"風","r":"かぜ","p":"Nomen"},{"s":"科学","r":"かがく","p":"Nomen"},{"s":"太陽","r":"たいよう","p":"Nomen"},{"s":"台風","r":"たいふう","p":"Nomen"},{"s":"北","r":"きた","p":"Nomen"},{"s":"馬","r":"うま","p":"Nomen"},{"s":"牛肉","r":"ぎゅうにく","p":"Nomen"},{"s":"雑誌","r":"ざっし","p":"Nomen"},{"s":"小説","r":"しょうせつ","p":"Nomen"},{"s":"大使館","r":"たいしかん","p":"Nomen"},{"s":"故障","r":"こしょう","p":"Verbalnomen"},{"s":"温度","r":"おんど","p":"Nomen"},{"s":"何か","r":"なにか","p":"Pronomen"},{"s":"向こう","r":"むこう","p":"Nomen"},{"s":"真ん中","r":"まんなか","p":"Nomen"},{"s":"遠く","r":"とおく","p":"Nomen"},{"s":"横","r":"よこ","p":"Nomen"},{"s":"つまらない","r":"つまらない","p":"Adjektiv"},{"s":"素晴らしい","r":"すばらしい","p":"Adjektiv"},{"s":"毎年","r":"まいとし","p":"Nomen"},{"s":"来月","r":"らいげつ","p":"Nomen"},{"s":"日時","r":"にちじ","p":"Nomen"},{"s":"夕方","r":"ゆうがた","p":"Nomen"},{"s":"通る","r":"とおる","p":"Verb"},{"s":"自動車","r":"じどうしゃ","p":"Nomen"},{"s":"慣れる","r":"なれる","p":"Verb"},{"s":"撮る","r":"とる","p":"Verb"},{"s":"やっと","r":"やっと","p":"Adverb"},{"s":"どんどん","r":"どんどん","p":"Adverb"},{"s":"並べる","r":"ならべる","p":"Verb"},{"s":"逃げる","r":"にげる","p":"Verb"},{"s":"渡す","r":"わたす","p":"Verb"},{"s":"値段","r":"ねだん","p":"Nomen"},{"s":"両方","r":"りょうほう","p":"Nomen"},{"s":"約束","r":"やくそく","p":"Verbalnomen"},{"s":"一部","r":"いちぶ","p":"Nomen"},{"s":"ラジオ","r":"ラジオ","p":"Nomen"},{"s":"入院","r":"にゅういん","p":"Verbalnomen"},{"s":"ニュース","r":"ニュース","p":"Nomen"},{"s":"旅行","r":"りょこう","p":"Verbalnomen"},{"s":"用意","r":"ようい","p":"Verbalnomen"},{"s":"伸びる","r":"のびる","p":"Verb"},{"s":"パーティー","r":"パーティー","p":"Verbalnomen"},{"s":"ビール","r":"ビール","p":"Nomen"},{"s":"早く","r":"はやく","p":"Adverb"},{"s":"番組","r":"ばんぐみ","p":"Nomen"},{"s":"ビデオ","r":"ビデオ","p":"Nomen"},{"s":"増やす","r":"ふやす","p":"Verb"},{"s":"振る","r":"ふる","p":"Verb"},{"s":"迎える","r":"むかえる","p":"Verb"},{"s":"無理","r":"むり","p":"Na-Adjektiv"},{"s":"珍しい","r":"めずらしい","p":"Adjektiv"},{"s":"有名","r":"ゆうめい","p":"Na-Adjektiv"},{"s":"喜ぶ","r":"よろこぶ","p":"Verb"},{"s":"留学","r":"りゅうがく","p":"Verbalnomen"},{"s":"料理","r":"りょうり","p":"Verbalnomen"},{"s":"野菜","r":"やさい","p":"Nomen"},{"s":"分かれる","r":"わかれる","p":"Verb"},{"s":"特別","r":"とくべつ","p":"Na-Adjektiv"},{"s":"理由","r":"りゆう","p":"Nomen"},{"s":"自由","r":"じゆう","p":"Na-Adjektiv"},{"s":"方向","r":"ほうこう","p":"Nomen"},{"s":"残る","r":"のこる","p":"Verb"},{"s":"ビル","r":"ビル","p":"Nomen"},{"s":"まとめる","r":"まとめる","p":"Verb"},{"s":"流れる","r":"ながれる","p":"Verb"},{"s":"セーター","r":"セーター","p":"Nomen"},{"s":"シャツ","r":"シャツ","p":"Nomen"},{"s":"洗濯","r":"せんたく","p":"Verbalnomen"},{"s":"間違える","r":"まちがえる","p":"Verb"},{"s":"アイスクリーム","r":"アイスクリーム","p":"Nomen"},{"s":"乾く","r":"かわく","p":"Verb"},{"s":"冷める","r":"さめる","p":"Verb"},{"s":"色々","r":"いろいろ","p":"Na-Adjektiv"},{"s":"持って行く","r":"もっていく","p":"Verb"},{"s":"着替える","r":"きがえる","p":"Verb"},{"s":"石鹸","r":"せっけん","p":"Nomen"},{"s":"野球","r":"やきゅう","p":"Nomen"},{"s":"昼食","r":"ちゅうしょく","p":"Nomen"},{"s":"朝食","r":"ちょうしょく","p":"Nomen"},{"s":"眠る","r":"ねむる","p":"Verb"},{"s":"初め","r":"はじめ","p":"Nomen"},{"s":"火","r":"ひ","p":"Nomen"},{"s":"西","r":"にし","p":"Nomen"},{"s":"東","r":"ひがし","p":"Nomen"},{"s":"南","r":"みなみ","p":"Nomen"},{"s":"夕食","r":"ゆうしょく","p":"Nomen"},{"s":"なかなか","r":"なかなか","p":"Adverb"},{"s":"励ます","r":"はげます","p":"Verb"},{"s":"涙","r":"なみだ","p":"Nomen"},{"s":"夢","r":"ゆめ","p":"Nomen"},{"s":"職場","r":"しょくば","p":"Nomen"},{"s":"隣","r":"となり","p":"Nomen"},{"s":"マンション","r":"マンション","p":"Nomen"},{"s":"エレベーター","r":"エレベーター","p":"Nomen"},{"s":"窓","r":"まど","p":"Nomen"},{"s":"押す","r":"おす","p":"Verb"},{"s":"入学","r":"にゅうがく","p":"Verbalnomen"},{"s":"戸","r":"と","p":"Nomen"},{"s":"通り","r":"とおり","p":"Nomen"},{"s":"亡くなる","r":"なくなる","p":"Verb"},{"s":"夫婦","r":"ふうふ","p":"Nomen"},{"s":"女性","r":"じょせい","p":"Nomen"},{"s":"森","r":"もり","p":"Nomen"},{"s":"トラック","r":"トラック","p":"Nomen"},{"s":"レコード","r":"レコード","p":"Nomen"},{"s":"熱","r":"ねつ","p":"Nomen"},{"s":"ページ","r":"ページ","p":"Nomen"},{"s":"踊る","r":"おどる","p":"Verb"},{"s":"長さ","r":"ながさ","p":"Nomen"},{"s":"厚さ","r":"あつさ","p":"Nomen"},{"s":"秘密","r":"ひみつ","p":"Na-Adjektiv"},{"s":"訪れる","r":"おとずれる","p":"Verb"},{"s":"景色","r":"けしき","p":"Nomen"},{"s":"京都","r":"きょうと","p":"Nomen"}];
+const $ = id => document.getElementById(id);
+const STORE = 'kotodama_srs_proto_v1';
+let db = {cards:[]};
+let editId = null;
+let reviewQueue = [];
+let current = null;
+let reviewMode='srs';
+let selectedCards=new Set();
+let sessionTotal=0, sessionSeen=0;
+let enemyHp=100, enemyMaxHp=100, heroHp=180, heroMaxHp=180;
+let wave=1, combo=0, potionCount=2, guardCount=1, focusCount=1;
+let guardActive=false, focusActive=false;
+let heroTimer=null;
+
+
+const V5_DAY=86400000, V5_MIN=60000;
+function ensureCardV5(c){
+  if(!c.history) c.history=[];
+  if(!c.state){
+    if(!c.reps) c.state='new';
+    else if((c.intervalDays||0)>=21) c.state='mature';
+    else c.state='learning';
+  }
+  if(c.stability==null) c.stability=Math.max(0.2,c.intervalDays||0.5);
+  if(c.difficulty==null) c.difficulty=5;
+  if(c.learningStep==null) c.learningStep=0;
+  if(c.lapses==null) c.lapses=0;
+  return c;
+}
+function migrateV5(){ db.cards.forEach(ensureCardV5); }
+function cardStatus(c){
+  ensureCardV5(c);
+  return c.state;
+}
+function statusLabel(s){
+  return ({new:'Neu',learning:'Lernend',mature:'Reif',relearning:'Wiederlernen'})[s]||s;
+}
+function statusClass(s){ return 'status-'+(s==='relearning'?'relearn':s); }
+function formatDue(ts){
+  if(!ts || ts<=now()) return 'jetzt';
+  const d=ts-now();
+  if(d<60*V5_MIN) return `in ${Math.max(1,Math.round(d/V5_MIN))} Min.`;
+  if(d<V5_DAY) return `in ${Math.max(1,Math.round(d/(60*V5_MIN)))} Std.`;
+  const days=Math.max(1,Math.round(d/V5_DAY));
+  return `in ${days} Tag${days===1?'':'en'}`;
+}
+function appendHistory(c,rating,oldState,newState,nextDue,interval){
+  c.history.push({at:now(),rating,oldState,newState,due:nextDue,interval});
+  if(c.history.length>100) c.history=c.history.slice(-100);
+}
+function duplicateMatches(front,excludeId=null){
+  const q=(front||'').trim().replace(/\s+/g,' ');
+  if(!q) return [];
+  return db.cards.filter(c=>c.id!==excludeId && (
+    (c.front||'').trim().replace(/\s+/g,' ')===q ||
+    ((c.reading||'').trim() && (c.reading||'').trim()==q)
+  )).slice(0,5);
+}
+function renderDuplicateWarning(){
+  const box=$('duplicateBox'); if(!box) return;
+  const hits=duplicateMatches($('frontInput').value,editId);
+  if(!hits.length){box.classList.add('hidden');box.innerHTML='';return;}
+  box.classList.remove('hidden');
+  box.innerHTML=`⚠️ ${hits.length} ähnliche Karte${hits.length===1?'':'n'} bereits vorhanden.<br>`+
+    hits.map((c,i)=>`<button type="button" class="btn small ghost" data-dup="${c.id}">${safe(c.front)}${c.reading?' · '+safe(c.reading):''}</button>`).join(' ');
+  box.querySelectorAll('[data-dup]').forEach(b=>b.onclick=()=>{
+    const c=db.cards.find(x=>x.id===b.dataset.dup); if(c) openEditor(c);
+  });
+}
+
+function uid(){ return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function now(){ return Date.now(); }
+function save(){ localStorage.setItem(STORE,JSON.stringify(db)); refresh(); }
+function load(){
+ try{ const x=JSON.parse(localStorage.getItem(STORE)); if(x&&Array.isArray(x.cards)) db=x; }catch(e){}
+ migrateV5(); refresh();
+}
+function dueCards(){
+ const t=now();
+ return db.cards.filter(c => (c.due||0)<=t).sort((a,b)=>(a.due||0)-(b.due||0));
+}
+function refresh(){
+ migrateV5();
+ const due=dueCards();
+ $('dueCount').textContent=due.length;
+ $('newCount').textContent=db.cards.filter(c=>cardStatus(c)==='new').length;
+ $('learningCount').textContent=db.cards.filter(c=>cardStatus(c)==='learning').length;
+ $('matureCount').textContent=db.cards.filter(c=>cardStatus(c)==='mature').length;
+ $('relearnCount').textContent=db.cards.filter(c=>cardStatus(c)==='relearning').length;
+ $('totalCount').textContent=db.cards.length;
+ $('homeText').textContent = db.cards.length
+   ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
+   : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
+ renderList();
+}
+function showScreen(id){
+ document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
+ $(id).classList.add('active');
+ document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('primary',b.dataset.screen===id));
+ $('addFab').classList.toggle('hidden',id==='review');
+}
+document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
+
+function safe(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function renderFront(front,reading){
+ const f=(front||'').trim(), r=(reading||'').trim();
+ if(r && f && !f.includes('\n') && /[\u3400-\u9fff]/.test(f)){
+   return `<ruby>${safe(f)}<rt>${safe(r)}</rt></ruby>`;
+ }
+ return safe(f).replace(/\n/g,'<br>');
+}
+function updatePreview(){
+ $('previewFront').innerHTML=renderFront($('frontInput').value,$('readingInput').value);
+ $('previewBack').innerHTML=safe($('backInput').value).replace(/\n/g,'<br>');
+}
+['frontInput','readingInput','backInput','exampleInput'].forEach(id=>$(id).addEventListener('input',updatePreview));
+$('frontInput').addEventListener('input',()=>{
+  renderDuplicateWarning();
+  clearTimeout(window.__dictDebounce);
+  window.__dictDebounce=setTimeout(async()=>{
+    const q=$('frontInput').value.trim().split(/\n+/)[0];
+    if(!q || q.length>30) return;
+    if(!FULL_DICT) return;
+    const res=findDict(q);
+    if(res.length) renderLookupResults(res,q,true);
+  },450);
+});
+$('copyFrontToExample').onclick=()=>{ if(!$('exampleInput').value.trim()) $('exampleInput').value=$('frontInput').value.trim(); updatePreview(); };
+
+function openEditor(card=null){
+ editId=card?.id||null;
+ $('editorTitle').textContent=card?'Karte bearbeiten':'Neue Karte';
+ $('frontInput').value=card?.front||'';
+ $('readingInput').value=card?.reading||'';
+ $('backInput').value=card?.back||'';
+ $('exampleInput').value=card?.example||'';
+ $('readingStatus').textContent='Lokale Analyse bereit: Grundformen + häufige Beugungen, komplett offline.';
+ updatePreview(); renderDuplicateWarning(); $('lookupResults').classList.add('hidden');
+ $('editorModal').classList.add('show');
+ setTimeout(()=>$('frontInput').focus(),50);
+}
+function closeEditor(){ $('editorModal').classList.remove('show'); editId=null; }
+$('addFab').onclick=()=>openEditor();
+$('cancelEditor').onclick=closeEditor;
+
+function kataToHira(s){
+ return (s||'').replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60));
+}
+function isKanaOnly(s){ return /^[\u3040-\u30ffー\s。、！？・]+$/.test(s||''); }
+const GODAN={
+ 'う':{a:'わ',i:'い',te:'って',ta:'った'},'く':{a:'か',i:'き',te:'いて',ta:'いた'},
+ 'ぐ':{a:'が',i:'ぎ',te:'いで',ta:'いだ'},'す':{a:'さ',i:'し',te:'して',ta:'した'},
+ 'つ':{a:'た',i:'ち',te:'って',ta:'った'},'ぬ':{a:'な',i:'に',te:'んで',ta:'んだ'},
+ 'ぶ':{a:'ば',i:'び',te:'んで',ta:'んだ'},'む':{a:'ま',i:'み',te:'んで',ta:'んだ'},
+ 'る':{a:'ら',i:'り',te:'って',ta:'った'}
+};
+function looksIchidan(surface,reading){
+ if(!surface.endsWith('る')||!reading.endsWith('る')) return false;
+ const prev=reading.slice(-2,-1);
+ return /[いきしちにひみりえけせてねへめれぎじぢびぴげぜでべぺ]/.test(prev);
+}
+function generatedForms(e){
+ const s=e.s, r=kataToHira(e.r), out=[{f:s,read:r,base:s,kind:'Grundform'}];
+ if((e.p||'').includes('Verb')){
+   if(s==='する'){
+     [['した','した'],['して','して'],['します','します'],['しました','しました'],['しない','しない'],['しなかった','しなかった'],['できる','できる']].forEach(x=>out.push({f:x[0],read:x[1],base:s,kind:'Beugung'}));
+   }else if(s==='来る'){
+     [['来た','きた'],['来て','きて'],['来ます','きます'],['来ました','きました'],['来ない','こない'],['来なかった','こなかった']].forEach(x=>out.push({f:x[0],read:x[1],base:s,kind:'Beugung'}));
+   }else if(s.endsWith('る') && looksIchidan(s,r)){
+     const ss=s.slice(0,-1), rr=r.slice(0,-1);
+     [['た','た'],['て','て'],['ない','ない'],['なかった','なかった'],['ます','ます'],['ました','ました'],['ません','ません'],['ませんでした','ませんでした'],['られる','られる'],['れば','れば']].forEach(x=>out.push({f:ss+x[0],read:rr+x[1],base:s,kind:'Beugung'}));
+   }else{
+     const se=s.slice(-1), re=r.slice(-1), g=GODAN[re];
+     if(g){
+       const ss=s.slice(0,-1), rr=r.slice(0,-1);
+       let te=g.te,ta=g.ta;
+       if(s==='行く'){te='って';ta='った'}
+       [[te,te],[ta,ta],[g.a+'ない',g.a+'ない'],[g.a+'なかった',g.a+'なかった'],[g.i+'ます',g.i+'ます'],[g.i+'ました',g.i+'ました'],[g.i+'ません',g.i+'ません']].forEach(x=>out.push({f:ss+x[0],read:rr+x[1],base:s,kind:'Beugung'}));
+     }
+   }
+ }
+ if((e.p||'').includes('Adjektiv') && s.endsWith('い') && r.endsWith('い')){
+   const ss=s.slice(0,-1), rr=r.slice(0,-1);
+   [['かった','かった'],['くない','くない'],['くなかった','くなかった'],['くて','くて']].forEach(x=>out.push({f:ss+x[0],read:rr+x[1],base:s,kind:'Beugung'}));
+ }
+ return out;
+}
+let FORM_INDEX=null;
+function getFormIndex(){
+ if(FORM_INDEX) return FORM_INDEX;
+ const map=new Map();
+ for(const e of LOCAL_ENTRIES){
+   for(const x of generatedForms(e)){
+     const old=map.get(x.f);
+     if(!old || (x.kind==='Grundform' && old.kind!=='Grundform')) map.set(x.f,x);
+   }
+ }
+ FORM_INDEX=[...map.values()].sort((a,b)=>b.f.length-a.f.length);
+ return FORM_INDEX;
+}
+function analyzeLocal(text){
+ const raw=(text||'').trim(); if(!raw) return null;
+ const exact=getFormIndex().find(x=>x.f===raw);
+ if(exact) return {reading:exact.read,base:exact.base,complete:true,parts:[exact]};
+ if(isKanaOnly(raw)) return {reading:kataToHira(raw),base:raw,complete:true,parts:[]};
+ // Greedy segmentation: longest known word/form first; kana/punctuation is preserved.
+ let i=0, reading='', parts=[], complete=true;
+ const idx=getFormIndex();
+ while(i<raw.length){
+   let hit=null;
+   for(const x of idx){ if(raw.startsWith(x.f,i)){ hit=x; break; } }
+   if(hit){ reading+=hit.read; parts.push(hit); i+=hit.f.length; continue; }
+   const ch=raw[i];
+   if(/[\u3040-\u30ffー\s。、！？・0-9０-９]/.test(ch)){ reading+=kataToHira(ch); i++; continue; }
+   // Unknown Kanji/Latin chunk: preserve it so the user can see what was unresolved.
+   reading+=ch; complete=false; i++;
+ }
+ return {reading,base:parts.length===1?parts[0].base:null,complete,parts};
+}
+function autoReading(){
+ const raw=$('frontInput').value.trim();
+ const status=$('readingStatus');
+ if(!raw){ status.textContent='Bitte zuerst einen japanischen Eintrag eingeben.'; status.style.color='#9b3d32'; return; }
+ // Explicit second line in the front still wins as a convenient manual shortcut.
+ const lines=raw.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+ if(lines.length>1 && isKanaOnly(lines[1])){
+   $('readingInput').value=kataToHira(lines[1]);
+   status.textContent='Lesung aus der zweiten Zeile übernommen.'; status.style.color='#2f7a48'; updatePreview(); return;
+ }
+ const target=lines[0];
+ const a=analyzeLocal(target);
+ if(a && a.complete){
+   $('readingInput').value=a.reading;
+   status.textContent=a.base && a.base!==target ? `Offline erkannt: ${target} → Grundform ${a.base}` : 'Lesung offline erkannt.';
+   status.style.color='#2f7a48';
+ }else if(a && a.reading && a.reading!==target){
+   $('readingInput').value=a.reading;
+   status.textContent='Teilweise erkannt. Unbekannte Kanji bleiben in der Lesung stehen – bitte kurz prüfen.';
+   status.style.color='#9a6b23';
+ }else{
+   status.textContent='Keine sichere Offline-Lesung gefunden. Du kannst die Lesung manuell eintragen.';
+   status.style.color='#9b3d32';
+ }
+ updatePreview();
+}
+$('autoReadingBtn').onclick=autoReading;
+
+
+// ---------- Vollständiges JMdict (optional installiert, danach offline) ----------
+const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compactIndex';
+const JMDICT_RELEASE='3.6.2+20260921173324';
+const JMDICT_URL='https://github.com/scriptin/jmdict-simplified/releases/download/3.6.2%2B20260921173324/jmdict-ger-3.6.2%2B20260921173324.json.zip';
+let FULL_DICT=null, DICT_META=null;
+
+function idbOpen(){
+ return new Promise((resolve,reject)=>{
+   const r=indexedDB.open(DICT_DB,1);
+   r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains(DICT_STORE)) r.result.createObjectStore(DICT_STORE); };
+   r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error);
+ });
+}
+async function idbGet(key){
+ const dbx=await idbOpen();
+ return new Promise((resolve,reject)=>{
+   const tx=dbx.transaction(DICT_STORE,'readonly'), rq=tx.objectStore(DICT_STORE).get(key);
+   rq.onsuccess=()=>resolve(rq.result); rq.onerror=()=>reject(rq.error);
+ });
+}
+async function idbSet(key,val){
+ const dbx=await idbOpen();
+ return new Promise((resolve,reject)=>{
+   const tx=dbx.transaction(DICT_STORE,'readwrite'); tx.objectStore(DICT_STORE).put(val,key);
+   tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
+ });
+}
+async function idbClear(){
+ const dbx=await idbOpen();
+ return new Promise((resolve,reject)=>{
+   const tx=dbx.transaction(DICT_STORE,'readwrite'); tx.objectStore(DICT_STORE).clear();
+   tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
+ });
+}
+function setDictStatus(text,good=false){
+ const e=$('dictHomeStatus'); if(e){e.textContent=text;e.style.color=good?'#67d27b':'';}
+}
+function setDictProgress(pct,show=true){
+ $('dictProgress').classList.toggle('hidden',!show);
+ $('dictProgressFill').style.width=Math.max(0,Math.min(100,pct))+'%';
+}
+async function loadInstalledDictionary(){
+ try{
+   const pack=await idbGet(DICT_KEY);
+   if(pack && pack.index){
+     FULL_DICT=pack.index; DICT_META=pack.meta||{};
+     setDictStatus(`JMdict installiert: ${DICT_META.entries||'?'} Einträge · Stand ${DICT_META.dictDate||'unbekannt'}`,true);
+     return true;
+   }
+ }catch(e){ console.warn(e); }
+ setDictStatus('Noch kein vollständiges JMdict installiert. Die eingebaute 1000-Wörter-Hilfe bleibt als Fallback aktiv.');
+ return false;
+}
+function normalizeGlosses(word){
+ const out=[], pos=new Set();
+ for(const s of (word.sense||[])){
+   for(const p of (s.partOfSpeech||[])) pos.add(p);
+   for(const g of (s.gloss||[])){
+     if(!g || !g.text) continue;
+     if(!g.lang || g.lang==='ger' || g.lang==='deu' || g.lang==='de') out.push(g.text);
+   }
+ }
+ return {gloss:[...new Set(out)].slice(0,8),pos:[...pos].slice(0,5)};
+}
+function compactJmdict(root){
+ const words=Array.isArray(root)?root:(root.words||[]);
+ const idx=Object.create(null); let kept=0;
+ for(const w of words){
+   const kanji=(w.kanji||[]).map(x=>x.text).filter(Boolean);
+   const kana=(w.kana||[]).map(x=>x.text).filter(Boolean);
+   const {gloss,pos}=normalizeGlosses(w);
+   if(!gloss.length) continue;
+   const spellings=kanji.length?kanji:kana;
+   for(const s of spellings){
+     let readings=kana.length?kana:[s];
+     // Respect reading restrictions where possible.
+     const restricted=(w.kana||[]).filter(k=>Array.isArray(k.appliesToKanji) && k.appliesToKanji.length && !k.appliesToKanji.includes('*') && k.appliesToKanji.includes(s)).map(k=>k.text);
+     if(restricted.length) readings=restricted;
+     const rec={w:s,r:readings[0]||s,g:gloss,p:pos,c:!!((w.kanji||[]).find(k=>k.text===s)?.common || (w.kana||[]).find(k=>k.text===readings[0])?.common)};
+     (idx[s]||(idx[s]=[])).push(rec);
+     for(const rr of readings) if(rr!==s) (idx[rr]||(idx[rr]=[])).push({...rec,r:rr});
+   }
+   kept++;
+ }
+ return {index:idx,entries:kept,total:words.length};
+}
+function findDict(q){
+ q=(q||'').trim(); if(!q||!FULL_DICT) return [];
+ const direct=FULL_DICT[q]||[];
+ if(direct.length) return direct.slice().sort((a,b)=>(b.c?1:0)-(a.c?1:0)).slice(0,8);
+ // Try locally analyzed base form.
+ const a=analyzeLocal(q);
+ if(a?.base && FULL_DICT[a.base]) return FULL_DICT[a.base].slice(0,8);
+ return [];
+}
+function renderLookupResults(results,source,compact=false){
+ const box=$('lookupResults'); box.innerHTML=''; box.classList.remove('hidden');
+ if(!results.length){
+   box.innerHTML='<div class="lookup-item"><div class="lookup-gloss">Kein Wörterbucheintrag gefunden.</div></div>'; return;
+ }
+ for(const r of results){
+   const d=document.createElement('div'); d.className='lookup-item'+(compact?' compact':'');
+   d.innerHTML=`<div class="lookup-head"><span class="lookup-word">${safe(r.w)}</span><span class="lookup-reading">${safe(r.r)}</span></div>
+     <div class="lookup-gloss">${safe((r.g||[]).join(' · '))}</div>
+     <div class="lookup-pos">${safe((r.p||[]).join(', '))}</div>
+     <div class="row" style="margin-top:7px"><button class="btn small primary">Übernehmen</button></div>`;
+   d.querySelector('button').onclick=()=>{
+      $('readingInput').value=r.r||'';
+      $('backInput').value=(r.g||[]).slice(0,4).join('\n');
+      $('readingStatus').textContent=`Aus JMdict übernommen${source&&source!==r.w?` (${source} → ${r.w})`:''}.`;
+      $('readingStatus').style.color='#2f7a48';
+      updatePreview(); box.classList.add('hidden');
+   };
+   box.appendChild(d);
+ }
+}
+$('dictLookupBtn').onclick=async()=>{
+ const q=$('frontInput').value.trim().split(/\n+/)[0];
+ if(!q){ $('readingStatus').textContent='Bitte zuerst ein japanisches Wort eingeben.';return; }
+ if(!FULL_DICT) await loadInstalledDictionary();
+ if(!FULL_DICT){
+   $('lookupResults').classList.remove('hidden');
+   $('lookupResults').innerHTML='<div class="lookup-item">Das vollständige Wörterbuch ist noch nicht installiert. Auf „Heute“ kannst du JMdict einmalig installieren.</div>';
+   return;
+ }
+ const a=analyzeLocal(q), base=(a&&a.base)||q;
+ let res=findDict(q); if(!res.length && base!==q) res=findDict(base);
+ renderLookupResults(res,q);
+};
+
+function loadScript(url){
+ return new Promise((resolve,reject)=>{
+   if(window.JSZip) return resolve();
+   const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
+ });
+}
+async function parseDictionaryFile(file){
+ let text='';
+ if(file.name.toLowerCase().endsWith('.zip')){
+   await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+   const zip=await JSZip.loadAsync(file);
+   const names=Object.keys(zip.files).filter(n=>n.toLowerCase().endsWith('.json'));
+   if(!names.length) throw new Error('ZIP enthält keine JSON-Datei.');
+   text=await zip.files[names[0]].async('string');
+ } else text=await file.text();
+ return JSON.parse(text);
+}
+async function installDictionaryRoot(root,label){
+ setDictStatus('Wörterbuch wird für Kotodama aufbereitet …'); setDictProgress(55,true);
+ await new Promise(r=>setTimeout(r,30));
+ const compact=compactJmdict(root);
+ if(!compact.entries) throw new Error('Keine deutschen JMdict-Einträge erkannt.');
+ FULL_DICT=compact.index;
+ DICT_META={entries:compact.entries,total:compact.total,dictDate:root.dictDate||root.date||'',source:label,installedAt:new Date().toISOString()};
+ setDictProgress(82,true); await idbSet(DICT_KEY,{index:FULL_DICT,meta:DICT_META});
+ setDictProgress(100,true);
+ setDictStatus(`JMdict installiert: ${compact.entries} Einträge · Stand ${DICT_META.dictDate||'unbekannt'}`,true);
+ setTimeout(()=>setDictProgress(0,false),800);
+}
+$('installDictBtn').onclick=async()=>{
+ if(!navigator.onLine && location.protocol!=='http:' && location.protocol!=='https:'){ alert('Für die einmalige automatische Installation wird eine Internetverbindung benötigt. Alternativ kannst du eine JMdict-JSON/ZIP-Datei importieren.'); return; }
+ if(!confirm('JMdict wird einmalig aus dem Internet geladen und anschließend lokal im Browser gespeichert. Fortfahren?')) return;
+ try{
+   setDictStatus('Lade deutsches JMdict herunter …'); setDictProgress(8,true);
+   await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+   const resp=await fetch(JMDICT_URL);
+   if(!resp.ok) throw new Error('Download fehlgeschlagen: HTTP '+resp.status);
+   const blob=await resp.blob(); setDictProgress(25,true);
+   const zip=await JSZip.loadAsync(blob); setDictProgress(38,true);
+   const jsonName=Object.keys(zip.files).find(n=>n.toLowerCase().endsWith('.json'));
+   if(!jsonName) throw new Error('Keine JSON-Datei im Archiv gefunden.');
+   const txt=await zip.files[jsonName].async('string'); setDictProgress(48,true);
+   const root=JSON.parse(txt); await installDictionaryRoot(root,'JMdict '+JMDICT_RELEASE);
+ }catch(e){
+   console.error(e); setDictProgress(0,false);
+   setDictStatus('Automatische Installation fehlgeschlagen. Nutze „Wörterbuch-Datei importieren“ als Fallback.');
+   alert('Die automatische Wörterbuch-Installation wurde vom Browser/Netzwerk blockiert oder ist fehlgeschlagen.\n\nFallback: Lade die deutsche JMdict-JSON/ZIP-Datei separat herunter und importiere sie über „Wörterbuch-Datei importieren“.\n\nDetails: '+e.message);
+ }
+};
+$('importDictBtn').onclick=()=>{ $('dictFile').value=''; $('dictFile').click(); };
+$('dictFile').addEventListener('change',async e=>{
+ const f=e.target.files?.[0]; if(!f)return;
+ try{
+   setDictStatus('Wörterbuch-Datei wird gelesen …'); setDictProgress(10,true);
+   const root=await parseDictionaryFile(f); setDictProgress(45,true);
+   await installDictionaryRoot(root,f.name);
+ }catch(err){ console.error(err);setDictProgress(0,false);alert('Wörterbuch konnte nicht importiert werden: '+err.message); }
+});
+$('removeDictBtn').onclick=async()=>{
+ if(!FULL_DICT && !(await idbGet(DICT_KEY))) return alert('Es ist kein vollständiges Wörterbuch installiert.');
+ if(!confirm('Das installierte Wörterbuch aus diesem Browser entfernen? Deine Karten bleiben erhalten.')) return;
+ await idbClear(); FULL_DICT=null; DICT_META=null; setDictStatus('Vollständiges Wörterbuch entfernt. Die eingebaute 1000-Wörter-Hilfe bleibt verfügbar.');
+};
+loadInstalledDictionary();
+
+function commitCard(andNext=false){
+ const front=$('frontInput').value.trim(), back=$('backInput').value.trim();
+ if(!front||!back){ alert('Vorder- und Rückseite dürfen nicht leer sein.'); return; }
+ const old=db.cards.find(c=>c.id===editId);
+ if(old){
+   old.front=front; old.reading=$('readingInput').value.trim(); old.back=back; old.example=$('exampleInput').value.trim(); old.updatedAt=now();
+ }else{
+   db.cards.push({id:uid(),front,reading:$('readingInput').value.trim(),back,example:$('exampleInput').value.trim(),
+      createdAt:now(),updatedAt:now(),due:now(),reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,
+      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[]});
+ }
+ save();
+ if(andNext){ editId=null; $('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('frontInput').focus();}
+ else closeEditor();
+}
+$('saveCard').onclick=()=>commitCard(false);
+$('saveNext').onclick=()=>commitCard(true);
+
+function renderList(){
+ const box=$('wordlist'); if(!box)return;
+ const q=($('search')?.value||'').toLowerCase();
+ const sf=$('statusFilter')?.value||'all', sort=$('sortFilter')?.value||'due';
+ let cards=[...db.cards].map(ensureCardV5).filter(c=>(c.front+'\n'+c.reading+'\n'+c.back+'\n'+c.example).toLowerCase().includes(q));
+ if(sf!=='all'){
+   if(sf==='due') cards=cards.filter(c=>(c.due||0)<=now());
+   else cards=cards.filter(c=>cardStatus(c)===sf);
+ }
+ if(sort==='newest') cards.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+ else if(sort==='alpha') cards.sort((a,b)=>(a.front||'').localeCompare(b.front||'','ja'));
+ else cards.sort((a,b)=>(a.due||0)-(b.due||0));
+ box.innerHTML=cards.length?'':'<div class="note">Noch keine passenden Karten.</div>';
+ cards.forEach(c=>{
+   const d=document.createElement('div');d.className='cardrow';
+   const status=cardStatus(c);
+   d.innerHTML=`<input class="card-select" type="checkbox" data-id="${c.id}" ${selectedCards.has(c.id)?'checked':''}><div>
+      <div class="front">${safe(c.front)}${c.reading?`<div class="note">${safe(c.reading)}</div>`:''}</div>
+      <div class="meta"><span class="status-chip ${statusClass(status)}">${statusLabel(status)}</span>${safe(c.back).replace(/\n/g,' · ')} · fällig ${formatDue(c.due)}</div>
+      <div class="history">${c.history?.length||0} Reviews · ${c.lapses||0} Fehler · Intervall ${Math.round((c.intervalDays||0)*10)/10} Tage</div>
+    </div><div><button class="btn small">✏️</button></div>`;
+   d.querySelector('button').onclick=()=>openEditor(c);
+   const cb=d.querySelector('.card-select');cb.onchange=()=>{cb.checked?selectedCards.add(c.id):selectedCards.delete(c.id);updateSelectionCount();};
+   box.appendChild(d);
+ });
+ updateSelectionCount();
+}
+$('search').addEventListener('input',renderList);
+$('statusFilter').addEventListener('change',renderList);
+$('sortFilter').addEventListener('change',renderList);
+
+const enemyImg=new Image();
+const ENEMY_KEYS=['m_green_mush','m_goblin','m_wraith'].filter(k=>IMAGE_SPRITES[k]);
+function chooseEnemy(){
+ const key=ENEMY_KEYS[(wave-1)%ENEMY_KEYS.length]||ENEMY_KEYS[0];
+ if(key) enemyImg.src=IMAGE_SPRITES[key];
+}
+function drawEnemy(){ chooseEnemy();
+ const c=$('enemy'),x=c.getContext('2d');x.imageSmoothingEnabled=false;x.clearRect(0,0,c.width,c.height);
+ const draw=()=>{const s=Math.min(c.width/enemyImg.naturalWidth,c.height/enemyImg.naturalHeight),w=enemyImg.naturalWidth*s,h=enemyImg.naturalHeight*s;x.clearRect(0,0,c.width,c.height);x.drawImage(enemyImg,(c.width-w)/2,c.height-h,w,h)};
+ enemyImg.complete?draw():enemyImg.onload=draw;
+}
+const knightCache={};
+function frame(src,cb){
+ let i=knightCache[src];if(!i){i=new Image();i.src=src;knightCache[src]=i}
+ if(i.complete)cb(i);else i.onload=()=>cb(i);
+}
+function playHero(name,loop=false,fps=7,onDone){
+ clearTimeout(heroTimer); const arr=KNIGHT_FRAMES[name];let k=0,c=$('hero'),x=c.getContext('2d');x.imageSmoothingEnabled=false;
+ function step(){frame(arr[k],img=>{x.clearRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height)});k++;
+   if(k>=arr.length){if(loop)k=0;else{onDone&&onDone();return}} heroTimer=setTimeout(step,1000/fps)}
+ step();
+}
+function idle(){playHero('idle',true,6)}
+function updateHp(){
+ $('enemyHpFill').style.width=(Math.max(0,enemyHp)/enemyMaxHp*100)+'%';
+ $('heroHpFill').style.width=(Math.max(0,heroHp)/heroMaxHp*100)+'%';
+ $('enemyHpText').textContent=Math.max(0,enemyHp)+'/'+enemyMaxHp;
+ $('heroHpText').textContent=Math.max(0,heroHp)+'/'+heroMaxHp;
+ $('potionCount').textContent=potionCount; $('guardCount').textContent=guardCount; $('focusCount').textContent=focusCount;
+ $('usePotion').disabled=potionCount<=0 || heroHp>=heroMaxHp;
+ $('useGuard').disabled=guardCount<=0 || guardActive;
+ $('useFocus').disabled=focusCount<=0 || focusActive;
+ $('comboInfo').textContent=combo>=2?`🔥 ${combo}er Kombo`:'';
+ $('waveInfo').textContent=`Gegner ${wave} · ${reviewMode==='srs'?'SRS-Review':'Freies Training'}`;
+}
+function attackEnemy(dmg){
+ if(focusActive){dmg+=14;focusActive=false;$('combatLog').textContent='✨ Fokus verstärkt deinen Angriff!';}
+ if(combo>=3) dmg+=Math.min(12,(combo-2)*2);
+ playHero('attack1',false,12,idle); enemyHp=Math.max(0,enemyHp-dmg);updateHp();
+ setTimeout(()=>{$('enemy').classList.add('hit');setTimeout(()=>$('enemy').classList.remove('hit'),320)},180);
+}
+function enemyAttack(dmg){
+ if(guardActive){dmg=Math.max(1,Math.round(dmg*0.35));guardActive=false;$('combatLog').textContent='🛡 Der Schild fängt den Großteil des Schadens ab.';}
+ heroHp=Math.max(0,heroHp-dmg);updateHp();$('battleStage').classList.add('shake');playHero('hurt',false,10,idle);setTimeout(()=>$('battleStage').classList.remove('shake'),360);
+}
+
+
+$('usePotion').onclick=()=>{
+ if(potionCount<=0 || heroHp>=heroMaxHp)return;
+ potionCount--; const heal=Math.min(45,heroMaxHp-heroHp);heroHp+=heal;
+ $('combatLog').textContent=`🧪 +${heal} HP`;updateHp();
+};
+$('useGuard').onclick=()=>{
+ if(guardCount<=0 || guardActive)return;
+ guardCount--;guardActive=true;$('combatLog').textContent='🛡 Der nächste Gegnertreffer wird stark reduziert.';updateHp();
+};
+$('useFocus').onclick=()=>{
+ if(focusCount<=0 || focusActive)return;
+ focusCount--;focusActive=true;$('combatLog').textContent='✨ Der nächste erfolgreiche Angriff wird verstärkt.';updateHp();
+};
+function resetCombatSession(cardCount){
+ heroMaxHp=180;heroHp=heroMaxHp;wave=1;combo=0;
+ potionCount=2+Math.floor(cardCount/15);guardCount=1;focusCount=1;
+ guardActive=false;focusActive=false;
+ startWave();
+}
+function startWave(){
+ enemyMaxHp=Math.max(120,85+Math.min(80,sessionTotal*4));
+ enemyHp=enemyMaxHp;
+ drawEnemy();updateHp();
+ $('combatLog').textContent=`👹 Gegner ${wave} erscheint.`;
+}
+function nextWave(){
+ wave++;
+ // Kleine Belohnung nach jedem besiegten Gegner.
+ heroHp=Math.min(heroMaxHp,heroHp+18);
+ if(wave%2===0) potionCount++;
+ startWave();
+}
+
+function startReview(){
+ reviewMode='srs';
+ reviewQueue=dueCards().sort((a,b)=>{
+   const pr=s=>({relearning:0,learning:1,new:2,mature:3}[cardStatus(s)]??4);
+   return pr(a)-pr(b) || (a.due||0)-(b.due||0);
+ });
+ if(!reviewQueue.length){alert('Gerade ist keine Karte fällig. Nutze „Freies Training“, wenn du trotzdem üben möchtest.');return}
+ sessionTotal=reviewQueue.length;sessionSeen=0;
+ resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
+}
+$('startReview').onclick=startReview;
+
+function startTraining(cards){
+ const unique=[...new Map(cards.map(c=>[c.id,c])).values()];
+ if(!unique.length){alert('Für diese Auswahl gibt es keine Karten.');return;}
+ reviewMode='training';
+ reviewQueue=[...unique].sort(()=>Math.random()-.5);
+ sessionTotal=reviewQueue.length;sessionSeen=0;
+ resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
+}
+$('startCustomTraining').onclick=()=>{
+ const states=[...document.querySelectorAll('.train-status:checked')].map(x=>x.value);
+ startTraining(db.cards.filter(c=>states.includes(cardStatus(c))));
+};
+$('trainAllBtn').onclick=()=>startTraining(db.cards);
+$('trainUnsafeBtn').onclick=()=>startTraining(db.cards.filter(c=>cardStatus(c)!=='mature'));
+function updateSelectionCount(){ $('selectionCount').textContent=`${selectedCards.size} ausgewählt`; }
+$('trainSelectedBtn').onclick=()=>startTraining(db.cards.filter(c=>selectedCards.has(c.id)));
+$('selectVisibleBtn').onclick=()=>{
+ document.querySelectorAll('.card-select').forEach(cb=>{cb.checked=true;selectedCards.add(cb.dataset.id);});updateSelectionCount();
+};
+$('clearSelectionBtn').onclick=()=>{selectedCards.clear();document.querySelectorAll('.card-select').forEach(cb=>cb.checked=false);updateSelectionCount();};
+
+function nextCard(){
+ if(heroHp<=0){
+   alert('Du bist erschöpft. Die restlichen Karten bleiben für später erhalten.');
+   showScreen('home');refresh();return;
+ }
+ if(!reviewQueue.length){
+   alert(reviewMode==='srs'?'Review abgeschlossen!':'Training abgeschlossen!');
+   showScreen('home');refresh();return;
+ }
+ if(enemyHp<=0) nextWave();
+ current=reviewQueue.shift(); ensureCardV5(current); sessionSeen++;
+ $('reviewProgress').textContent=`Karte ${sessionSeen} · noch ${reviewQueue.length} im Stapel${reviewMode==='training'?' · freies Training':''}`;
+ $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:'SRS-Termin bleibt unverändert'}`;
+ $('reviewFront').innerHTML=renderFront(current.front,current.reading);
+ $('reviewBack').innerHTML=safe(current.back).replace(/\n/g,'<br>');
+ if(current.example){$('reviewExample').innerHTML=safe(current.example).replace(/\n/g,'<br>');$('reviewExample').classList.remove('hidden')}
+ else $('reviewExample').classList.add('hidden');
+ $('answerArea').classList.add('hidden');$('showAnswer').classList.remove('hidden');
+}
+$('showAnswer').onclick=()=>{$('showAnswer').classList.add('hidden');$('answerArea').classList.remove('hidden')};
+
+function schedule(card,rating){
+ ensureCardV5(card);
+ const oldState=card.state;
+ const t=now();
+ card.lastReview=t; card.reps=(card.reps||0)+1;
+ let interval=0;
+
+ // Lern- und Wiederlernphase: kurze Schritte.
+ if(card.state==='new' || card.state==='learning' || card.state==='relearning'){
+   if(rating==='again'){
+     card.state=card.state==='new'?'learning':'relearning';
+     card.learningStep=0; card.lapses=(card.lapses||0)+(oldState==='new'?0:1);
+     card.difficulty=Math.min(10,(card.difficulty||5)+0.5);
+     card.stability=Math.max(0.2,(card.stability||0.3)*0.55);
+     card.due=t+10*V5_MIN; interval=10/1440;
+   } else if(rating==='hard'){
+     card.state=oldState==='relearning'?'relearning':'learning';
+     card.learningStep=Math.max(0,card.learningStep||0);
+     card.due=t+30*V5_MIN; interval=30/1440;
+     card.difficulty=Math.min(10,(card.difficulty||5)+0.15);
+   } else if(rating==='good'){
+     const step=(card.learningStep||0)+1; card.learningStep=step;
+     if(step===1){
+       card.state=oldState==='relearning'?'relearning':'learning';
+       card.due=t+V5_DAY; interval=1;
+     }else{
+       card.state='learning'; card.learningStep=0;
+       card.stability=Math.max(3,(card.stability||1)*1.8);
+       interval=Math.max(3,Math.round(card.stability));
+       card.intervalDays=interval; card.due=t+interval*V5_DAY;
+     }
+   } else { // easy
+     card.state='learning'; card.learningStep=0;
+     card.difficulty=Math.max(1,(card.difficulty||5)-0.35);
+     card.stability=Math.max(5,(card.stability||1)*2.2);
+     interval=Math.max(5,Math.round(card.stability));
+     card.intervalDays=interval; card.due=t+interval*V5_DAY;
+   }
+ } else {
+   // Reife Karten: stability/difficulty bestimmen das nächste Intervall.
+   let s=Math.max(1,card.stability||card.intervalDays||3);
+   let d=Math.min(10,Math.max(1,card.difficulty||5));
+   if(rating==='again'){
+     card.state='relearning'; card.learningStep=0; card.lapses=(card.lapses||0)+1;
+     card.difficulty=Math.min(10,d+0.7);
+     card.stability=Math.max(0.5,s*0.35);
+     interval=10/1440; card.due=t+10*V5_MIN;
+   }else{
+     const mult=rating==='hard'?1.25:rating==='good'?(1.65+(10-d)*0.05):(2.15+(10-d)*0.08);
+     if(rating==='hard') card.difficulty=Math.min(10,d+0.12);
+     if(rating==='easy') card.difficulty=Math.max(1,d-0.25);
+     card.stability=Math.max(s+1,s*mult);
+     interval=Math.max(1,Math.round(card.stability));
+     card.intervalDays=interval;
+     card.state=interval>=21?'mature':'learning';
+     card.due=t+interval*V5_DAY;
+   }
+ }
+ if(card.intervalDays==null || interval>=1) card.intervalDays=interval;
+ appendHistory(card,rating,oldState,card.state,card.due,interval);
+}
+document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
+ if(!current)return;
+ const r=b.dataset.rate;
+ if(reviewMode==='srs') schedule(current,r);
+ else {
+   // Freies Training protokolliert separat, verändert aber keine SRS-Fälligkeit.
+   current.practiceHistory=current.practiceHistory||[];
+   current.practiceHistory.push({at:now(),rating:r});
+   if(current.practiceHistory.length>100) current.practiceHistory=current.practiceHistory.slice(-100);
+ }
+ if(r==='again'){
+   combo=0; enemyAttack(12);
+   // "Nochmal" kommt IMMER noch einmal in denselben Durchlauf.
+   reviewQueue.push(current);
