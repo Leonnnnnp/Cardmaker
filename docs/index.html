@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6.2</title>
+<title>Kotodama SRS – Prototyp v6.3</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -115,7 +115,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.2</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.3</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -664,12 +664,20 @@ function renderLookupResults(results,source,compact=false){
 $('dictLookupBtn').onclick=async()=>{
  const q=$('frontInput').value.trim().split(/\n+/)[0];
  if(!q){ $('readingStatus').textContent='Bitte zuerst ein japanisches Wort eingeben.';return; }
+
  if(!FULL_DICT) await loadInstalledDictionary();
+
  if(!FULL_DICT){
-   $('lookupResults').classList.remove('hidden');
-   $('lookupResults').innerHTML='<div class="lookup-item">Das vollständige Wörterbuch wird automatisch eingerichtet. Falls es noch lädt, versuche die Suche gleich noch einmal.</div>';
-   return;
+   $('readingStatus').textContent='Wörterbuch wird von GitHub geladen …';
+   $('readingStatus').style.color='#9a6b23';
+   const ok=await installBundledDictionary(false);
+   if(!ok || !FULL_DICT){
+     $('lookupResults').classList.remove('hidden');
+     $('lookupResults').innerHTML='<div class="lookup-item">Das Wörterbuch konnte nicht geladen werden. Tippe auf „Wörterbuch neu laden“ oder lade die Seite neu.</div>';
+     return;
+   }
  }
+
  const a=analyzeLocal(q), base=(a&&a.base)||q;
  let res=findDict(q); if(!res.length && base!==q) res=findDict(base);
  renderLookupResults(res,q);
