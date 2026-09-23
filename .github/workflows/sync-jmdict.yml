@@ -1,0 +1,43 @@
+name: Sync JMdict resource
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-jmdict.yml"
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download current German JMdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/resources /tmp/jmdict
+          RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest)"
+          URL="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(a["browser_download_url"] for a in d["assets"] if a["name"].startswith("jmdict-ger-") and a["name"].endswith(".json.zip")))')"
+          curl -fL "$URL" -o /tmp/jmdict/jmdict.zip
+          unzip -p /tmp/jmdict/jmdict.zip '*.json' | gzip -9 > docs/resources/jmdict-ger.json.gz
+
+      - name: Commit updated dictionary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/resources/jmdict-ger.json.gz
+          if git diff --cached --quiet; then
+            echo "Dictionary unchanged."
+          else
+            git commit -m "Update bundled German JMdict"
+            git push
+          fi
