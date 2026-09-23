@@ -1014,3 +1014,55 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
    combo=0; enemyAttack(12);
    // "Nochmal" kommt IMMER noch einmal in denselben Durchlauf.
    reviewQueue.push(current);
+   $('combatLog').textContent='↩ Diese Karte kommt später in dieser Runde nochmal.';
+ } else if(r==='hard'){
+   combo=Math.max(0,combo-1); attackEnemy(10);
+   if(Math.random()<.22) enemyAttack(6);
+ } else if(r==='good'){
+   combo++; attackEnemy(18);
+ } else {
+   combo+=2; attackEnemy(27);
+ }
+ // gelegentliche Item-Belohnung für längere Serien
+ if(combo>0 && combo%5===0){
+   potionCount++;$('combatLog').textContent='🎁 5er-Serie: Heiltrank gefunden!';
+ }
+ save();updateHp();
+ setTimeout(nextCard,450);
+});
+$('leaveReview').onclick=()=>{showScreen('home');refresh()};
+$('editCurrent').onclick=()=>{if(current)openEditor(current)};
+
+$('exportBtn').onclick=()=>{
+ const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);a.download='kotodama-srs-save.json';a.click();URL.revokeObjectURL(a.href);
+};
+
+$('importBtn').onclick=()=>{ $('importFile').value=''; $('importFile').click(); };
+$('importFile').addEventListener('change', async e=>{
+ const file=e.target.files && e.target.files[0];
+ if(!file) return;
+ try{
+   const parsed=JSON.parse(await file.text());
+   if(!parsed || !Array.isArray(parsed.cards)) throw new Error('Keine gültige cards-Liste gefunden.');
+   const cleaned=parsed.cards.filter(c=>c && typeof c.front==='string' && typeof c.back==='string').map(c=>({
+     id:c.id||uid(), front:c.front, reading:typeof c.reading==='string'?c.reading:'', back:c.back, example:typeof c.example==='string'?c.example:'',
+     createdAt:Number(c.createdAt)||now(), updatedAt:Number(c.updatedAt)||now(), due:Number(c.due)||now(), reps:Number(c.reps)||0,
+     intervalDays:Number(c.intervalDays)||0, ease:Number(c.ease)||2.5, lapses:Number(c.lapses)||0, lastReview:c.lastReview==null?null:Number(c.lastReview)
+   }));
+   if(!cleaned.length && parsed.cards.length) throw new Error('Die Karten konnten nicht gelesen werden.');
+   if(!confirm(`Speicherstand mit ${cleaned.length} Karte(n) importieren? Der aktuelle lokale Stand wird ersetzt.`)) return;
+   db={cards:cleaned}; save(); showScreen('home');
+   alert(`Import erfolgreich: ${cleaned.length} Karte(n) geladen.`);
+ }catch(err){
+   alert('Import fehlgeschlagen: '+err.message);
+ }
+});
+
+window.addEventListener('keydown',e=>{
+ if($('editorModal').classList.contains('show') && (e.ctrlKey||e.metaKey) && e.key==='Enter'){e.preventDefault();commitCard(true)}
+});
+load();
+</script>
+</body>
+</html>
