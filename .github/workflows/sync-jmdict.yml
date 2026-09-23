@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download current German JMdict
+      - name: Download and build compact German JMdict index
         shell: bash
         run: |
           set -euo pipefail
@@ -26,7 +26,76 @@ jobs:
           RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest)"
           URL="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(a["browser_download_url"] for a in d["assets"] if a["name"].startswith("jmdict-ger-") and a["name"].endswith(".json.zip")))')"
           curl -fL "$URL" -o /tmp/jmdict/jmdict.zip
-          unzip -p /tmp/jmdict/jmdict.zip '*.json' | gzip -9 > docs/resources/jmdict-ger.json.gz
+          unzip -p /tmp/jmdict/jmdict.zip '*.json' > /tmp/jmdict/jmdict-ger.json
+
+          python3 - <<'PY'
+          import json, gzip, os
+          src="/tmp/jmdict/jmdict-ger.json"
+          out="docs/resources/jmdict-ger-compact.json.gz"
+          with open(src,encoding="utf-8") as f:
+              root=json.load(f)
+          words=root if isinstance(root,list) else root.get("words",[])
+          idx={}
+          kept=0
+
+          def add(key, rec):
+              if not key: return
+              arr=idx.setdefault(key,[])
+              sig=(rec["w"],rec["r"],tuple(rec["g"]))
+              if not any((x["w"],x["r"],tuple(x["g"]))==sig for x in arr):
+                  arr.append(rec)
+
+          for w in words:
+              kanji=[x.get("text") for x in w.get("kanji",[]) if x.get("text")]
+              kana=[x.get("text") for x in w.get("kana",[]) if x.get("text")]
+              gloss=[]
+              pos=[]
+              for sense in w.get("sense",[]):
+                  for p in sense.get("partOfSpeech",[]):
+                      if p not in pos: pos.append(p)
+                  for g in sense.get("gloss",[]):
+                      if not g or not g.get("text"): continue
+                      lang=g.get("lang")
+                      if lang in (None,"ger","deu","de") and g["text"] not in gloss:
+                          gloss.append(g["text"])
+              if not gloss: continue
+              spellings=kanji or kana
+              for spelling in spellings:
+                  readings=kana or [spelling]
+                  restricted=[
+                      k.get("text") for k in w.get("kana",[])
+                      if k.get("text")
+                      and isinstance(k.get("appliesToKanji"),list)
+                      and k["appliesToKanji"]
+                      and "*" not in k["appliesToKanji"]
+                      and spelling in k["appliesToKanji"]
+                  ]
+                  if restricted: readings=restricted
+                  reading=readings[0] if readings else spelling
+                  common=any(x.get("text")==spelling and x.get("common") for x in w.get("kanji",[])) or any(x.get("text")==reading and x.get("common") for x in w.get("kana",[]))
+                  rec={"w":spelling,"r":reading,"g":gloss[:8],"p":pos[:5],"c":bool(common)}
+                  add(spelling,rec)
+                  for rr in readings:
+                      if rr!=spelling:
+                          rrrec=dict(rec); rrrec["r"]=rr
+                          add(rr,rrrec)
+              kept+=1
+
+          pack={
+              "meta":{
+                  "entries":kept,
+                  "total":len(words),
+                  "dictDate":root.get("dictDate") or root.get("date") or "",
+                  "format":"kotodama-compact-v1"
+              },
+              "index":idx
+          }
+          with gzip.open(out,"wt",encoding="utf-8",compresslevel=9) as f:
+              json.dump(pack,f,ensure_ascii=False,separators=(",",":"))
+          print("Built",out,os.path.getsize(out),"bytes",kept,"entries",len(idx),"keys")
+          PY
+
+          rm -f docs/resources/jmdict-ger.json.gz
 
       - name: Commit updated dictionary
         shell: bash
@@ -34,10 +103,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/resources/jmdict-ger.json.gz
+          git add -A docs/resources
           if git diff --cached --quiet; then
             echo "Dictionary unchanged."
           else
-            git commit -m "Update bundled German JMdict"
+            git commit -m "Update prebuilt German JMdict index"
             git push
           fi
