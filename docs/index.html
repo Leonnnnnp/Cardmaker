@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6.1</title>
+<title>Kotodama SRS – Prototyp v6.2</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -115,7 +115,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.2</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -548,7 +548,7 @@ $('autoReadingBtn').onclick=autoReading;
 // ---------- Vollständiges JMdict (optional installiert, danach offline) ----------
 const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compactIndex';
 const JMDICT_RELEASE='3.6.2+20260921173324';
-const JMDICT_URL='./resources/jmdict-ger.json.gz';
+const JMDICT_URL='./resources/jmdict-ger-compact.json.gz';
 let FULL_DICT=null, DICT_META=null;
 
 function idbOpen(){
@@ -696,23 +696,34 @@ async function fetchBundledJmdict(){
  const resp=await fetch(JMDICT_URL,{cache:'no-cache'});
  if(!resp.ok) throw new Error('Wörterbuch-Ressource nicht gefunden (HTTP '+resp.status+').');
  if(!('DecompressionStream' in window)) throw new Error('Dieser Browser unterstützt die benötigte GZIP-Dekomprimierung nicht.');
- setDictProgress(18,true);
+ setDictProgress(22,true);
  const stream=resp.body.pipeThrough(new DecompressionStream('gzip'));
  const text=await new Response(stream).text();
- setDictProgress(42,true);
+ setDictProgress(68,true);
  return JSON.parse(text);
 }
 async function installBundledDictionary(showAlert=true){
  try{
-   setDictStatus('Lade JMdict aus den GitHub-Ressourcen …');
-   setDictProgress(6,true);
-   const root=await fetchBundledJmdict();
-   await installDictionaryRoot(root,'Kotodama GitHub Resource · JMdict '+JMDICT_RELEASE);
+   setDictStatus('Lade vorbereiteten JMdict-Suchindex …');
+   setDictProgress(8,true);
+   const pack=await fetchBundledJmdict();
+   if(!pack || !pack.index) throw new Error('Ungültiges Wörterbuchformat.');
+   FULL_DICT=pack.index;
+   DICT_META={
+     ...(pack.meta||{}),
+     source:'Kotodama GitHub Resource · JMdict '+JMDICT_RELEASE,
+     installedAt:new Date().toISOString()
+   };
+   setDictProgress(84,true);
+   await idbSet(DICT_KEY,{index:FULL_DICT,meta:DICT_META});
+   setDictProgress(100,true);
+   setDictStatus(`JMdict bereit: ${DICT_META.entries||'?'} Einträge · Stand ${DICT_META.dictDate||'unbekannt'}`,true);
+   setTimeout(()=>setDictProgress(0,false),800);
    return true;
  }catch(e){
    console.error(e);setDictProgress(0,false);
-   setDictStatus('Wörterbuch-Ressource ist noch nicht bereit. Die kleine Offline-Hilfe bleibt vorübergehend aktiv.');
-   if(showAlert) alert('Das GitHub-Wörterbuch konnte noch nicht geladen werden. Bitte versuche es später erneut.\n\nDetails: '+e.message);
+   setDictStatus('Wörterbuch konnte nicht automatisch geladen werden. Die kleine Offline-Hilfe bleibt aktiv.');
+   if(showAlert) alert('Das GitHub-Wörterbuch konnte nicht geladen werden.\n\nDetails: '+e.message);
    return false;
  }
 }
