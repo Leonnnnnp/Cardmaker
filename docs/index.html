@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6</title>
+<title>Kotodama SRS – Prototyp v6.1</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -115,7 +115,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.1</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -162,14 +162,14 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 
    <div class="panel">
      <div style="font-weight:800;color:var(--teal);margin-bottom:6px">📚 Offline-Wörterbuch</div>
-     <div class="dict-status" id="dictHomeStatus">Noch kein vollständiges JMdict installiert. Die eingebaute 1000-Wörter-Hilfe bleibt als Fallback aktiv.</div>
+     <div class="dict-status" id="dictHomeStatus">Das vollständige JMdict wird beim ersten Start automatisch aus den GitHub-Ressourcen eingerichtet.</div>
      <div class="row" style="margin-top:10px">
-       <button class="btn small primary" id="installDictBtn">Wörterbuch installieren</button>
+       <button class="btn small primary" id="installDictBtn">Wörterbuch neu laden</button>
        <button class="btn small" id="importDictBtn">Wörterbuch-Datei importieren</button>
        <button class="btn small ghost" id="removeDictBtn">Wörterbuch entfernen</button>
      </div>
      <div class="progressline hidden" id="dictProgress"><div class="progressfill" id="dictProgressFill"></div></div>
-     <div class="note" style="margin-top:7px">Einmalige Installation mit Internet; danach wird das Wörterbuch lokal in diesem Browser gespeichert. Karten und Wörterbuch sind getrennte Datenbestände.</div>
+     <div class="note" style="margin-top:7px">Das Wörterbuch wird automatisch von dieser GitHub-Pages-App geladen und anschließend lokal im Browser gespeichert. Danach funktioniert die Suche offline.</div>
    </div>
 
    <div class="panel">
@@ -548,7 +548,7 @@ $('autoReadingBtn').onclick=autoReading;
 // ---------- Vollständiges JMdict (optional installiert, danach offline) ----------
 const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compactIndex';
 const JMDICT_RELEASE='3.6.2+20260921173324';
-const JMDICT_URL='https://github.com/scriptin/jmdict-simplified/releases/download/3.6.2%2B20260921173324/jmdict-ger-3.6.2%2B20260921173324.json.zip';
+const JMDICT_URL='./resources/jmdict-ger.json.gz';
 let FULL_DICT=null, DICT_META=null;
 
 function idbOpen(){
@@ -667,7 +667,7 @@ $('dictLookupBtn').onclick=async()=>{
  if(!FULL_DICT) await loadInstalledDictionary();
  if(!FULL_DICT){
    $('lookupResults').classList.remove('hidden');
-   $('lookupResults').innerHTML='<div class="lookup-item">Das vollständige Wörterbuch ist noch nicht installiert. Auf „Heute“ kannst du JMdict einmalig installieren.</div>';
+   $('lookupResults').innerHTML='<div class="lookup-item">Das vollständige Wörterbuch wird automatisch eingerichtet. Falls es noch lädt, versuche die Suche gleich noch einmal.</div>';
    return;
  }
  const a=analyzeLocal(q), base=(a&&a.base)||q;
@@ -692,6 +692,30 @@ async function parseDictionaryFile(file){
  } else text=await file.text();
  return JSON.parse(text);
 }
+async function fetchBundledJmdict(){
+ const resp=await fetch(JMDICT_URL,{cache:'no-cache'});
+ if(!resp.ok) throw new Error('Wörterbuch-Ressource nicht gefunden (HTTP '+resp.status+').');
+ if(!('DecompressionStream' in window)) throw new Error('Dieser Browser unterstützt die benötigte GZIP-Dekomprimierung nicht.');
+ setDictProgress(18,true);
+ const stream=resp.body.pipeThrough(new DecompressionStream('gzip'));
+ const text=await new Response(stream).text();
+ setDictProgress(42,true);
+ return JSON.parse(text);
+}
+async function installBundledDictionary(showAlert=true){
+ try{
+   setDictStatus('Lade JMdict aus den GitHub-Ressourcen …');
+   setDictProgress(6,true);
+   const root=await fetchBundledJmdict();
+   await installDictionaryRoot(root,'Kotodama GitHub Resource · JMdict '+JMDICT_RELEASE);
+   return true;
+ }catch(e){
+   console.error(e);setDictProgress(0,false);
+   setDictStatus('Wörterbuch-Ressource ist noch nicht bereit. Die kleine Offline-Hilfe bleibt vorübergehend aktiv.');
+   if(showAlert) alert('Das GitHub-Wörterbuch konnte noch nicht geladen werden. Bitte versuche es später erneut.\n\nDetails: '+e.message);
+   return false;
+ }
+}
 async function installDictionaryRoot(root,label){
  setDictStatus('Wörterbuch wird für Kotodama aufbereitet …'); setDictProgress(55,true);
  await new Promise(r=>setTimeout(r,30));
@@ -704,26 +728,7 @@ async function installDictionaryRoot(root,label){
  setDictStatus(`JMdict installiert: ${compact.entries} Einträge · Stand ${DICT_META.dictDate||'unbekannt'}`,true);
  setTimeout(()=>setDictProgress(0,false),800);
 }
-$('installDictBtn').onclick=async()=>{
- if(!navigator.onLine && location.protocol!=='http:' && location.protocol!=='https:'){ alert('Für die einmalige automatische Installation wird eine Internetverbindung benötigt. Alternativ kannst du eine JMdict-JSON/ZIP-Datei importieren.'); return; }
- if(!confirm('JMdict wird einmalig aus dem Internet geladen und anschließend lokal im Browser gespeichert. Fortfahren?')) return;
- try{
-   setDictStatus('Lade deutsches JMdict herunter …'); setDictProgress(8,true);
-   await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-   const resp=await fetch(JMDICT_URL);
-   if(!resp.ok) throw new Error('Download fehlgeschlagen: HTTP '+resp.status);
-   const blob=await resp.blob(); setDictProgress(25,true);
-   const zip=await JSZip.loadAsync(blob); setDictProgress(38,true);
-   const jsonName=Object.keys(zip.files).find(n=>n.toLowerCase().endsWith('.json'));
-   if(!jsonName) throw new Error('Keine JSON-Datei im Archiv gefunden.');
-   const txt=await zip.files[jsonName].async('string'); setDictProgress(48,true);
-   const root=JSON.parse(txt); await installDictionaryRoot(root,'JMdict '+JMDICT_RELEASE);
- }catch(e){
-   console.error(e); setDictProgress(0,false);
-   setDictStatus('Automatische Installation fehlgeschlagen. Nutze „Wörterbuch-Datei importieren“ als Fallback.');
-   alert('Die automatische Wörterbuch-Installation wurde vom Browser/Netzwerk blockiert oder ist fehlgeschlagen.\n\nFallback: Lade die deutsche JMdict-JSON/ZIP-Datei separat herunter und importiere sie über „Wörterbuch-Datei importieren“.\n\nDetails: '+e.message);
- }
-};
+$('installDictBtn').onclick=async()=>{ await installBundledDictionary(true); };
 $('importDictBtn').onclick=()=>{ $('dictFile').value=''; $('dictFile').click(); };
 $('dictFile').addEventListener('change',async e=>{
  const f=e.target.files?.[0]; if(!f)return;
