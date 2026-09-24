@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6.3</title>
+<title>Kotodama SRS – Prototyp v6.4</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -109,13 +109,25 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .combat-log{text-align:center;font-size:12px;color:var(--teal);min-height:18px;margin:4px 0}
 .combo{font-size:12px;color:var(--amber);text-align:center;min-height:17px}
 
+
+.cloud-panel{border-color:#416b78}
+.cloud-status{display:flex;align-items:center;gap:7px;font-size:13px}
+.cloud-dot{width:9px;height:9px;border-radius:50%;background:#777;display:inline-block;flex:0 0 auto}
+.cloud-dot.ok{background:var(--green)}
+.cloud-dot.sync{background:var(--amber)}
+.cloud-dot.err{background:var(--red)}
+.cloud-email{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.auth-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.auth-grid input{width:100%;padding:10px;border-radius:8px;border:1px solid #6f6288;background:#171126;color:var(--ink)}
+
 @media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
 </head>
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.3</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.4</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -134,6 +146,17 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <div class="stat"><strong id="learningCount">0</strong>lernend</div>
      <div class="stat"><strong id="matureCount">0</strong>reif</div>
      <div class="stat"><strong id="relearnCount">0</strong>wiederlernen</div>
+   </div>
+   <div class="panel cloud-panel" style="margin-top:12px">
+     <div style="font-weight:800;color:var(--teal);margin-bottom:7px">☁ Cloud-Speicher</div>
+     <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
+     <div id="cloudEmail" class="cloud-email"></div>
+     <div class="row" style="margin-top:10px">
+       <button class="btn small primary" id="cloudAccountBtn">Anmelden / Konto</button>
+       <button class="btn small" id="cloudSyncBtn" disabled>Jetzt synchronisieren</button>
+       <button class="btn small ghost hidden" id="cloudLogoutBtn">Abmelden</button>
+     </div>
+     <div class="note" style="margin-top:7px">Lokaler Speicher bleibt als Offline-Fallback erhalten. Nach der Anmeldung werden Karten zwischen deinen Geräten zusammengeführt.</div>
    </div>
    <div class="panel" style="margin-top:12px">
      <div style="font-weight:800;color:var(--amber);margin-bottom:6px">Heutige Expedition</div>
@@ -287,6 +310,23 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
  </div>
 </div>
 
+<div class="modal" id="cloudModal">
+ <div class="paper modal-card">
+   <h3 style="margin-top:0">☁ Kotodama Cloud</h3>
+   <div class="note" style="margin-bottom:10px">Mit demselben Konto kannst du auf Handy und Laptop denselben Lernstand verwenden.</div>
+   <div class="auth-grid">
+     <input id="cloudEmailInput" type="email" autocomplete="email" placeholder="E-Mail">
+     <input id="cloudPasswordInput" type="password" autocomplete="current-password" placeholder="Passwort">
+   </div>
+   <div id="cloudAuthMsg" class="note" style="margin-top:8px"></div>
+   <div class="row" style="margin-top:12px">
+     <button class="btn primary" id="cloudLoginBtn">Anmelden</button>
+     <button class="btn" id="cloudSignupBtn">Konto erstellen</button>
+     <button class="btn ghost" id="cloudModalClose">Schließen</button>
+   </div>
+ </div>
+</div>
+
 <input type="file" id="importFile" accept=".json,application/json" class="hidden">
 <input type="file" id="dictFile" accept=".json,.zip,application/json,application/zip" class="hidden">
 
@@ -300,6 +340,122 @@ const LOCAL_ENTRIES = [{"s":"する","r":"する","p":"Verb"},{"s":"なる","r":
 const $ = id => document.getElementById(id);
 const STORE = 'kotodama_srs_proto_v1';
 let db = {cards:[]};
+
+const SUPABASE_URL='https://tyrlysggrulcsptswynl.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_LdY1qv-ar0HqSYh9KFZrMg_fFVL4erX';
+let cloudClient=null, cloudUser=null, cloudSaveTimer=null, cloudBusy=false, cloudInitialized=false;
+
+function setCloudStatus(text,kind=''){
+ const s=$('cloudStatus'), d=$('cloudDot');
+ if(s) s.textContent=text;
+ if(d) d.className='cloud-dot'+(kind?' '+kind:'');
+ if($('cloudEmail')) $('cloudEmail').textContent=cloudUser?.email||'';
+ if($('cloudSyncBtn')) $('cloudSyncBtn').disabled=!cloudUser||cloudBusy||!navigator.onLine;
+ if($('cloudLogoutBtn')) $('cloudLogoutBtn').classList.toggle('hidden',!cloudUser);
+}
+function normalizeSaveData(x){
+ if(!x || !Array.isArray(x.cards)) return {cards:[]};
+ if(!x.meta || typeof x.meta!=='object') x.meta={};
+ return x;
+}
+function cardChangedAt(card){
+ return Number(card?.updatedAt||card?.lastReview||card?.createdAt||0);
+}
+function mergeSaveData(localData,cloudData){
+ const local=normalizeSaveData(structuredClone(localData||{cards:[]}));
+ const remote=normalizeSaveData(structuredClone(cloudData||{cards:[]}));
+ const map=new Map();
+ for(const card of remote.cards||[]) if(card?.id) map.set(card.id,card);
+ for(const card of local.cards||[]){
+   if(!card?.id) continue;
+   const prev=map.get(card.id);
+   if(!prev || cardChangedAt(card)>=cardChangedAt(prev)) map.set(card.id,card);
+ }
+ return {
+   ...remote,
+   ...local,
+   cards:[...map.values()],
+   meta:{
+     ...(remote.meta||{}),
+     ...(local.meta||{}),
+     localUpdatedAt:Math.max(Number(remote.meta?.localUpdatedAt||0),Number(local.meta?.localUpdatedAt||0))
+   }
+ };
+}
+function queueCloudSync(){
+ if(!cloudUser || !cloudClient || cloudBusy) return;
+ clearTimeout(cloudSaveTimer);
+ cloudSaveTimer=setTimeout(()=>syncCloudSave(false),900);
+}
+async function pushCloudSave(){
+ if(!cloudUser || !cloudClient) return false;
+ const payload=normalizeSaveData(structuredClone(db));
+ const {error}=await cloudClient.from('kotodama_saves').upsert({
+   user_id:cloudUser.id,
+   save_data:payload,
+   client_updated_at:new Date(Number(payload.meta?.localUpdatedAt||Date.now())).toISOString()
+ },{onConflict:'user_id'});
+ if(error) throw error;
+ return true;
+}
+async function syncCloudSave(showSuccess=true){
+ if(!cloudUser || !cloudClient) return false;
+ if(!navigator.onLine){setCloudStatus('Offline – Änderungen bleiben lokal','err');return false;}
+ if(cloudBusy) return false;
+ cloudBusy=true; setCloudStatus('Synchronisiere …','sync');
+ try{
+   const {data,error}=await cloudClient.from('kotodama_saves')
+     .select('save_data,server_updated_at,revision')
+     .eq('user_id',cloudUser.id)
+     .maybeSingle();
+   if(error) throw error;
+
+   if(data?.save_data){
+     const merged=mergeSaveData(db,data.save_data);
+     db=merged;
+     migrateV5();
+     localStorage.setItem(STORE,JSON.stringify(db));
+     refresh();
+   }
+   await pushCloudSave();
+   setCloudStatus(showSuccess?'Synchronisiert':'Cloud verbunden','ok');
+   return true;
+ }catch(e){
+   console.error('Cloud sync failed',e);
+   setCloudStatus('Sync fehlgeschlagen – lokal weiterarbeiten','err');
+   return false;
+ }finally{
+   cloudBusy=false;
+   if($('cloudSyncBtn')) $('cloudSyncBtn').disabled=!cloudUser||!navigator.onLine;
+ }
+}
+async function initCloud(){
+ if(cloudInitialized) return;
+ cloudInitialized=true;
+ if(!window.supabase?.createClient){
+   setCloudStatus('Cloud-Bibliothek konnte nicht geladen werden','err');
+   return;
+ }
+ cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
+   auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+ });
+ const {data:{session}}=await cloudClient.auth.getSession();
+ cloudUser=session?.user||null;
+ setCloudStatus(cloudUser?'Cloud verbunden':'Nur lokal gespeichert',cloudUser?'ok':'');
+ if(cloudUser) await syncCloudSave(false);
+ cloudClient.auth.onAuthStateChange((event,session)=>{
+   cloudUser=session?.user||null;
+   setCloudStatus(cloudUser?'Cloud verbunden':'Nur lokal gespeichert',cloudUser?'ok':'');
+   if(cloudUser && (event==='SIGNED_IN'||event==='TOKEN_REFRESHED')) setTimeout(()=>syncCloudSave(false),0);
+ });
+}
+function openCloudModal(){
+ $('cloudAuthMsg').textContent='';
+ $('cloudModal').classList.add('show');
+ $('cloudEmailInput').focus();
+}
+function closeCloudModal(){ $('cloudModal').classList.remove('show'); }
+
 let editId = null;
 let reviewQueue = [];
 let current = null;
@@ -369,9 +525,15 @@ function renderDuplicateWarning(){
 
 function uid(){ return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2); }
 function now(){ return Date.now(); }
-function save(){ localStorage.setItem(STORE,JSON.stringify(db)); refresh(); }
+function save(options={}){
+ db=normalizeSaveData(db);
+ if(options.touch!==false) db.meta.localUpdatedAt=now();
+ localStorage.setItem(STORE,JSON.stringify(db));
+ refresh();
+ if(options.cloud!==false) queueCloudSync();
+}
 function load(){
- try{ const x=JSON.parse(localStorage.getItem(STORE)); if(x&&Array.isArray(x.cards)) db=x; }catch(e){}
+ try{ const x=JSON.parse(localStorage.getItem(STORE)); if(x&&Array.isArray(x.cards)) db=normalizeSaveData(x); }catch(e){}
  migrateV5(); refresh();
 }
 function dueCards(){
@@ -1006,6 +1168,7 @@ function schedule(card,rating){
    }
  }
  if(card.intervalDays==null || interval>=1) card.intervalDays=interval;
+ card.updatedAt=t;
  appendHistory(card,rating,oldState,card.state,card.due,interval);
 }
 document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
@@ -1015,8 +1178,10 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
  else {
    // Freies Training protokolliert separat, verändert aber keine SRS-Fälligkeit.
    current.practiceHistory=current.practiceHistory||[];
-   current.practiceHistory.push({at:now(),rating:r});
+   const practicedAt=now();
+   current.practiceHistory.push({at:practicedAt,rating:r});
    if(current.practiceHistory.length>100) current.practiceHistory=current.practiceHistory.slice(-100);
+   current.updatedAt=practicedAt;
  }
  if(r==='again'){
    combo=0; enemyAttack(12);
@@ -1040,6 +1205,48 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
 });
 $('leaveReview').onclick=()=>{showScreen('home');refresh()};
 $('editCurrent').onclick=()=>{if(current)openEditor(current)};
+
+$('cloudAccountBtn').onclick=openCloudModal;
+$('cloudModalClose').onclick=closeCloudModal;
+$('cloudSyncBtn').onclick=()=>syncCloudSave(true);
+$('cloudLogoutBtn').onclick=async()=>{
+ if(!cloudClient)return;
+ await cloudClient.auth.signOut();
+ cloudUser=null;setCloudStatus('Nur lokal gespeichert','');
+};
+$('cloudLoginBtn').onclick=async()=>{
+ if(!cloudClient) await initCloud();
+ const email=$('cloudEmailInput').value.trim();
+ const password=$('cloudPasswordInput').value;
+ if(!email||!password){$('cloudAuthMsg').textContent='Bitte E-Mail und Passwort eingeben.';return;}
+ $('cloudAuthMsg').textContent='Anmeldung läuft …';
+ const {data,error}=await cloudClient.auth.signInWithPassword({email,password});
+ if(error){$('cloudAuthMsg').textContent='Anmeldung fehlgeschlagen: '+error.message;return;}
+ cloudUser=data.user||data.session?.user||null;
+ $('cloudAuthMsg').textContent='Angemeldet. Speicherstände werden zusammengeführt.';
+ closeCloudModal();
+ await syncCloudSave(true);
+};
+$('cloudSignupBtn').onclick=async()=>{
+ if(!cloudClient) await initCloud();
+ const email=$('cloudEmailInput').value.trim();
+ const password=$('cloudPasswordInput').value;
+ if(!email||!password){$('cloudAuthMsg').textContent='Bitte E-Mail und Passwort eingeben.';return;}
+ if(password.length<8){$('cloudAuthMsg').textContent='Bitte mindestens 8 Zeichen für das Passwort verwenden.';return;}
+ $('cloudAuthMsg').textContent='Konto wird erstellt …';
+ const {data,error}=await cloudClient.auth.signUp({email,password});
+ if(error){$('cloudAuthMsg').textContent='Konto konnte nicht erstellt werden: '+error.message;return;}
+ if(data.session){
+   cloudUser=data.user||data.session.user;
+   $('cloudAuthMsg').textContent='Konto erstellt und angemeldet.';
+   closeCloudModal();
+   await syncCloudSave(true);
+ }else{
+   $('cloudAuthMsg').textContent='Konto erstellt. Bitte bestätige die E-Mail und melde dich danach hier an.';
+ }
+};
+window.addEventListener('online',()=>{setCloudStatus(cloudUser?'Wieder online – synchronisiere …':'Nur lokal gespeichert',cloudUser?'sync':'');if(cloudUser)syncCloudSave(false)});
+window.addEventListener('offline',()=>setCloudStatus('Offline – Änderungen bleiben lokal','err'));
 
 $('exportBtn').onclick=()=>{
  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');
@@ -1071,6 +1278,7 @@ window.addEventListener('keydown',e=>{
  if($('editorModal').classList.contains('show') && (e.ctrlKey||e.metaKey) && e.key==='Enter'){e.preventDefault();commitCard(true)}
 });
 load();
+initCloud();
 </script>
 </body>
 </html>
