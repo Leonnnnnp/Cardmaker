@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v7.1</title>
+<title>Kotodama SRS – Prototyp v7.2</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -157,9 +157,9 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .adv-sprite canvas{max-width:145px}
 #adventure .panel{padding:8px 10px}
 #adventure .reviewcard{padding:10px;min-height:236px}
-.adv-prompt{height:64px;max-height:64px;overflow:auto;display:flex;align-items:center;justify-content:center;font-size:23px;margin:6px 0}
+.adv-prompt{height:72px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:23px;line-height:1.18;margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .adv-reading{height:20px;overflow:hidden}
-.adv-feedback{height:48px;max-height:48px;overflow:auto;margin-top:5px}
+.adv-feedback{height:64px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.18;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
 .adv-input-row{margin-top:6px}
 .adv-items{margin:5px 0}
 .adv-items button{padding:5px 7px}
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.2</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -1450,6 +1450,22 @@ function advStart(){
  save();
  showScreen('adventure');advBeginEncounter(0);
 }
+
+function advFitText(el,text,kind='prompt'){
+ if(!el)return;
+ const len=(text||'').replace(/\s+/g,' ').trim().length;
+ let size;
+ if(kind==='prompt') size=len<=14?25:len<=28?21:len<=50?18:len<=85?15:13;
+ else size=len<=55?14:len<=95?12.5:len<=145?11.5:10.5;
+ el.style.fontSize=size+'px';
+}
+function advSetFeedback(html,plainText,cls){
+ const box=$('advFeedback');
+ box.className='adv-feedback '+(cls||'');
+ box.innerHTML=html;
+ advFitText(box,plainText||box.textContent,'feedback');
+}
+
 function advNextQuestion(){
  const s=advState;if(!s)return;
  if(s.heroHp<=0)return advFinishRun(false);
@@ -1458,15 +1474,17 @@ function advNextQuestion(){
    s.deck=buildAdventureDeck(s.kind,Math.max(4,s.kind==='boss'?8:6));s.deckPos=0;
  }
  s.current=s.deck[s.deckPos++];s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;
- $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
+ $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advFeedback').style.fontSize='';$('advPrompt').style.fontSize='';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
  if(s.currentDirection==='jp-de'){
    $('advDirectionTag').textContent='日本語 → DEUTSCH';
    $('advPrompt').innerHTML=renderFront(s.current.front,s.current.reading);
+   advFitText($('advPrompt'),s.current.front,'prompt');
    $('advPromptReading').textContent=s.current.reading||'';
    $('advInput').placeholder='Deutsche Übersetzung eingeben …';
  }else{
    $('advDirectionTag').textContent='DEUTSCH → 日本語 (Romaji)';
    $('advPrompt').textContent=s.current.back;
+   advFitText($('advPrompt'),s.current.back,'prompt');
    $('advPromptReading').textContent='';
    $('advInput').placeholder='Romaji eingeben …';
  }
@@ -1499,7 +1517,9 @@ function advSubmitAnswer(){
  if(correct){st.correct++;if(fast)st.fast++;}else st.wrong++;
  if(s.hourglassTurns>0)s.hourglassTurns--;
  $('advInputRow').classList.add('hidden');$('advNextRow').classList.remove('hidden');
- const answer=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||s.current.back):(adventureRomajiAnswers(s.current)[0]||s.current.reading||s.current.front);
+ const answer=s.currentDirection==='jp-de'
+   ? s.current.back
+   : (s.current.front+(s.current.reading?' · '+s.current.reading:'')+(adventureRomajiAnswers(s.current)[0]?' · '+adventureRomajiAnswers(s.current)[0]:''));
  if(correct){
    AdvAudio.correct();
    s.combo++;s.bestCombo=Math.max(s.bestCombo,s.combo);if(fast)s.speedCombo++;else s.speedCombo=0;
@@ -1513,14 +1533,16 @@ function advSubmitAnswer(){
    }
    s.enemyHp=Math.max(0,s.enemyHp-dmg-extra);
    $('advEnemyWrap').classList.add('hit');setTimeout(()=>$('advEnemyWrap').classList.remove('hit'),300);
-   $('advFeedback').className='adv-feedback correct';$('advFeedback').textContent='✓ Treffer! '+(fast?'⚡ Schnell! ':'')+(extra?'✨ Blitz-Serie: +40 Schaden. ':'')+'Lösung: '+answer;
+   const okPrefix='✓ Treffer! '+(fast?'⚡ Schnell! ':'')+(extra?'✨ Blitz-Serie: +40 Schaden. ':'');
+   advSetFeedback(okPrefix+'<br><b>Lösung:</b> '+safe(answer).replace(/\n/g,' · '),okPrefix+' Lösung: '+answer,'correct');
    if(s.combo%5===0){const heal=Math.min(36,s.heroHpMax-s.heroHp);s.heroHp+=heal;if(heal)advSpawnDmg('hero','+'+heal,true)}
    const counterChance=s.kind==='boss'?.35:s.kind==='elite'?.22:.08;
    if(s.enemyHp>0&&Math.random()<counterChance)setTimeout(()=>advEnemyAttack(s.kind==='boss'?18:s.kind==='elite'?14:10),260);
  }else{
    AdvAudio.wrong();
    s.combo=0;s.speedCombo=0;
-   $('advFeedback').className='adv-feedback wrong';$('advFeedback').textContent='✗ Nicht ganz. Deine Eingabe: „'+val+'“ · Lösung: '+answer;
+   const badPrefix='✗ Nicht ganz. Deine Eingabe: „'+val+'“';
+   advSetFeedback(safe(badPrefix)+'<br><b>Lösung:</b> '+safe(answer).replace(/\n/g,' · '),badPrefix+' Lösung: '+answer,'wrong');
    setTimeout(()=>advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15),180);
  }
  const a=ensureAdventureMeta();a.bestCombo=Math.max(a.bestCombo||0,s.bestCombo||0);save();advUpdateUI();
@@ -1708,7 +1730,7 @@ $('advSoundBtn').onclick=()=>{AdvAudio.unlock();const on=AdvAudio.toggle();$('ad
 $('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;clearTimeout(advTimerHandle);AdvAudio.stopMusic();showScreen('home');refresh();renderAdventureHomeStats();}};
 $('advSubmit').onclick=advSubmitAnswer;
 $('advNext').onclick=()=>{if(!advState)return;if(advState.heroHp<=0)advFinishRun(false);else if(advState.enemyHp<=0)advWinEncounter();else advNextQuestion();};
-$('advInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();advSubmitAnswer();}});
+$('advInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();advSubmitAnswer();}});
 document.addEventListener('keydown',e=>{
  if(e.key!=='Enter'||!advState)return;
  if(!$('adventure').classList.contains('active'))return;
