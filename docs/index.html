@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6.4</title>
+<title>Kotodama SRS – Prototyp v6.5</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -127,7 +127,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.4</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.5</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -175,6 +175,14 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
        <label class="train-check"><input type="checkbox" class="train-status" value="learning" checked> Lernend</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="relearning" checked> Wiederlernen</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="mature"> Reif</label>
+     </div>
+     <div class="row" style="margin:8px 0">
+       <span class="note">Abfragerichtung:</span>
+       <select id="trainingDirection">
+         <option value="mixed">Gemischt</option>
+         <option value="jp-de">Japanisch → Deutsch</option>
+         <option value="de-jp">Deutsch → Japanisch</option>
+       </select>
      </div>
      <div class="row">
        <button class="btn primary" id="startCustomTraining">Auswahl trainieren</button>
@@ -460,6 +468,8 @@ let editId = null;
 let reviewQueue = [];
 let current = null;
 let reviewMode='srs';
+let reviewDirection='mixed';
+let currentDirection='jp-de';
 let selectedCards=new Set();
 let sessionTotal=0, sessionSeen=0;
 let enemyHp=100, enemyMaxHp=100, heroHp=180, heroMaxHp=180;
@@ -1057,6 +1067,7 @@ function nextWave(){
 
 function startReview(){
  reviewMode='srs';
+ reviewDirection='mixed';
  reviewQueue=dueCards().sort((a,b)=>{
    const pr=s=>({relearning:0,learning:1,new:2,mature:3}[cardStatus(s)]??4);
    return pr(a)-pr(b) || (a.due||0)-(b.due||0);
@@ -1067,17 +1078,18 @@ function startReview(){
 }
 $('startReview').onclick=startReview;
 
-function startTraining(cards){
+function startTraining(cards,direction=null){
  const unique=[...new Map(cards.map(c=>[c.id,c])).values()];
  if(!unique.length){alert('Für diese Auswahl gibt es keine Karten.');return;}
  reviewMode='training';
+ reviewDirection=direction || $('trainingDirection')?.value || 'mixed';
  reviewQueue=[...unique].sort(()=>Math.random()-.5);
  sessionTotal=reviewQueue.length;sessionSeen=0;
  resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
 }
 $('startCustomTraining').onclick=()=>{
  const states=[...document.querySelectorAll('.train-status:checked')].map(x=>x.value);
- startTraining(db.cards.filter(c=>states.includes(cardStatus(c))));
+ startTraining(db.cards.filter(c=>states.includes(cardStatus(c))),$('trainingDirection')?.value||'mixed');
 };
 $('trainAllBtn').onclick=()=>startTraining(db.cards);
 $('trainUnsafeBtn').onclick=()=>startTraining(db.cards.filter(c=>cardStatus(c)!=='mature'));
@@ -1088,6 +1100,25 @@ $('selectVisibleBtn').onclick=()=>{
 };
 $('clearSelectionBtn').onclick=()=>{selectedCards.clear();document.querySelectorAll('.card-select').forEach(cb=>cb.checked=false);updateSelectionCount();};
 
+function chooseReviewDirection(card){
+ if(reviewDirection==='jp-de' || reviewDirection==='de-jp') return reviewDirection;
+ const state=cardStatus(card);
+ const jpProbability=state==='new'?0.70:state==='mature'?0.45:0.55;
+ return Math.random()<jpProbability?'jp-de':'de-jp';
+}
+function renderReviewCard(card){
+ currentDirection=chooseReviewDirection(card);
+ const dirLabel=currentDirection==='jp-de'?'日本語 → Deutsch':'Deutsch → 日本語';
+ if(currentDirection==='jp-de'){
+   $('reviewFront').innerHTML=renderFront(card.front,card.reading);
+   $('reviewBack').innerHTML=safe(card.back).replace(/\n/g,'<br>');
+ }else{
+   $('reviewFront').innerHTML=safe(card.back).replace(/\n/g,'<br>');
+   const reading=card.reading?'<div class="note" style="margin-top:6px">'+safe(card.reading)+'</div>':'';
+   $('reviewBack').innerHTML=renderFront(card.front,card.reading)+reading;
+ }
+ return dirLabel;
+}
 function nextCard(){
  if(heroHp<=0){
    alert('Du bist erschöpft. Die restlichen Karten bleiben für später erhalten.');
@@ -1100,9 +1131,8 @@ function nextCard(){
  if(enemyHp<=0) nextWave();
  current=reviewQueue.shift(); ensureCardV5(current); sessionSeen++;
  $('reviewProgress').textContent=`Karte ${sessionSeen} · noch ${reviewQueue.length} im Stapel${reviewMode==='training'?' · freies Training':''}`;
- $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:'SRS-Termin bleibt unverändert'}`;
- $('reviewFront').innerHTML=renderFront(current.front,current.reading);
- $('reviewBack').innerHTML=safe(current.back).replace(/\n/g,'<br>');
+ const directionLabel=renderReviewCard(current);
+ $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> · ${directionLabel} · ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:'SRS-Termin bleibt unverändert'}`;
  if(current.example){$('reviewExample').innerHTML=safe(current.example).replace(/\n/g,'<br>');$('reviewExample').classList.remove('hidden')}
  else $('reviewExample').classList.add('hidden');
  $('answerArea').classList.add('hidden');$('showAnswer').classList.remove('hidden');
