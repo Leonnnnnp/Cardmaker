@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v7.0</title>
+<title>Kotodama SRS – Prototyp v7.1</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -152,6 +152,28 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .adv-summary-grid>div{background:#1d162d;border:1px solid #55466b;border-radius:8px;padding:8px;text-align:center}
 .adv-summary-grid strong{display:block;font-size:18px;color:var(--amber)}
 
+.adv-stage{min-height:188px}
+.adv-arena{min-height:170px;padding:8px 18px 4px}
+.adv-sprite canvas{max-width:145px}
+#adventure .panel{padding:8px 10px}
+#adventure .reviewcard{padding:10px;min-height:236px}
+.adv-prompt{height:64px;max-height:64px;overflow:auto;display:flex;align-items:center;justify-content:center;font-size:23px;margin:6px 0}
+.adv-reading{height:20px;overflow:hidden}
+.adv-feedback{height:48px;max-height:48px;overflow:auto;margin-top:5px}
+.adv-input-row{margin-top:6px}
+.adv-items{margin:5px 0}
+.adv-items button{padding:5px 7px}
+.adv-spell{position:absolute;z-index:9;pointer-events:none;border-radius:50%}
+.adv-spell.fire{width:34px;height:34px;background:radial-gradient(circle at 35% 35%,#fff6b5 0 15%,#ffb22d 28%,#f14b22 58%,rgba(180,24,8,.1) 75%);box-shadow:0 0 18px #ff7b22,0 0 34px #d62b16}
+.adv-spell.ice{width:31px;height:31px;background:linear-gradient(135deg,#eaffff,#79d9ff 45%,#3678e3);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);box-shadow:0 0 18px #84eaff}
+.adv-spell.thunder{width:12px;height:95px;border-radius:2px;background:linear-gradient(90deg,#fff,#fff46b,#f3bf1b);box-shadow:0 0 10px #fff,0 0 20px #ffe75e;transform:skewX(-10deg)}
+.adv-spell-impact{position:absolute;z-index:8;width:100px;height:100px;border-radius:50%;pointer-events:none;animation:advImpact .48s ease-out forwards}
+.adv-spell-impact.fire{background:radial-gradient(circle,#fff6b5 0 8%,#ff9d28 20%,#ef3f1f 45%,rgba(239,63,31,0) 72%)}
+.adv-spell-impact.ice{background:radial-gradient(circle,#fff 0 7%,#8cecff 24%,#468fe8 48%,rgba(70,143,232,0) 72%)}
+.adv-spell-impact.thunder{background:radial-gradient(circle,#fff 0 8%,#fff36d 24%,rgba(255,214,33,.2) 58%,rgba(255,214,33,0) 75%)}
+@keyframes advImpact{0%{opacity:0;transform:scale(.2)}30%{opacity:1;transform:scale(1.15)}100%{opacity:0;transform:scale(1.5)}}
+
+
 @media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
@@ -159,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.0</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.1</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -285,6 +307,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="row" style="justify-content:space-between;margin-bottom:7px">
      <button class="btn small" id="leaveAdventure">← Beenden</button>
      <div class="adv-kind" id="advRunInfo"></div>
+     <button class="btn small ghost" id="advSoundBtn">🔊</button>
    </div>
    <div class="adv-title" id="advEnemyName">Gegner</div>
    <div class="adv-stage" id="advStage">
@@ -1187,6 +1210,38 @@ $('selectVisibleBtn').onclick=()=>{
 $('clearSelectionBtn').onclick=()=>{selectedCards.clear();document.querySelectorAll('.card-select').forEach(cb=>cb.checked=false);updateSelectionCount();};
 
 
+
+/* Adventure audio: ported from the original synthesized 8-bit approach */
+const AdvAudio=(()=>{
+ let ctx=null, muted=false, musicTimer=null, musicOn=false;
+ const get=()=>{if(!ctx){try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}return ctx};
+ function unlock(){const c=get();if(c&&c.state==='suspended')c.resume()}
+ function tone(freq,start,dur,type='square',vol=.09){if(muted)return;const c=get();if(!c)return;const t=c.currentTime+start,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
+ function slide(a,b,dur,type='sawtooth',vol=.12){if(muted)return;const c=get();if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(a,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,b),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
+ function correct(){tone(523,0,.08);tone(784,.07,.14)}
+ function wrong(){tone(196,0,.10,'sawtooth',.11);tone(147,.09,.16,'sawtooth',.10)}
+ function hit(){tone(110,0,.12,'square',.13);tone(78,.05,.15,'square',.09)}
+ function enemy(){slide(260,90,.22,'sawtooth',.10)}
+ function heal(){[523,659,784,1046].forEach((f,i)=>tone(f,i*.06,.14,'triangle',.08))}
+ function item(){slide(700,1400,.09,'sine',.09);tone(1800,.07,.07,'triangle',.05)}
+ function victory(){[523,659,784,1046].forEach((f,i)=>tone(f,i*.12,.20,'square',.10))}
+ function defeat(){slide(300,90,.65,'sawtooth',.11)}
+ function spell(k){
+   if(k==='fire'){slide(220,950,.16,'sawtooth',.15);setTimeout(()=>{slide(180,45,.34,'square',.16);hit()},310)}
+   else if(k==='ice'){slide(1400,2200,.12,'sine',.11);setTimeout(()=>{slide(1800,600,.32,'triangle',.12);hit()},290)}
+   else {setTimeout(()=>{slide(140,42,.42,'sawtooth',.18);tone(60,0,.35,'square',.09);hit()},130)}
+ }
+ function startMusic(){
+   unlock();stopMusic();musicOn=true;let step=0;
+   const bass=[110,110,147,110,131,131,165,147],lead=[440,0,523,440,0,466,440,392];
+   const tick=()=>{if(!musicOn)return;const i=step++%bass.length;if(bass[i])tone(bass[i],0,.13,'square',.025);if(lead[i])tone(lead[i],.02,.10,'triangle',.018);musicTimer=setTimeout(tick,170)};
+   tick();
+ }
+ function stopMusic(){musicOn=false;if(musicTimer){clearTimeout(musicTimer);musicTimer=null}}
+ function toggle(){muted=!muted;if(muted)stopMusic();else startMusic();return !muted}
+ return {unlock,correct,wrong,hit,enemy,heal,item,victory,defeat,spell,startMusic,stopMusic,toggle,isMuted:()=>muted};
+})();
+
 /* ===================== v7 ADVENTURE MODE ===================== */
 let advState=null, advTimerHandle=null, advHeroTimer=null;
 const ADV_ENEMIES=[
@@ -1321,6 +1376,31 @@ function advDrawEnemy(){
  const draw=()=>{const s=Math.min(canvas.width/img.naturalWidth,canvas.height/img.naturalHeight),w=img.naturalWidth*s,h=img.naturalHeight*s;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,(canvas.width-w)/2,canvas.height-h,w,h)};
  img.complete?draw():img.onload=draw;
 }
+
+function advPlaySpell(kind,onImpact){
+ const stage=$('advStage'),arena=stage?.querySelector('.adv-arena'),hero=$('advHeroWrap'),enemy=$('advEnemyWrap');
+ if(!stage||!arena||!hero||!enemy){onImpact&&onImpact();return}
+ const ar=arena.getBoundingClientRect(),hr=hero.getBoundingClientRect(),er=enemy.getBoundingClientRect();
+ const start={x:hr.left-ar.left+hr.width*.72,y:hr.top-ar.top+hr.height*.38};
+ const end={x:er.left-ar.left+er.width*.28,y:er.top-ar.top+er.height*.30};
+ AdvAudio.spell(kind);
+ if(kind==='thunder'){
+   const bolt=document.createElement('div');bolt.className='adv-spell thunder';bolt.style.left=(end.x-6)+'px';bolt.style.top=Math.max(0,end.y-75)+'px';arena.appendChild(bolt);
+   setTimeout(()=>{bolt.remove();advSpellImpact(kind,end.x,end.y,arena);onImpact&&onImpact()},170);
+   return;
+ }
+ const p=document.createElement('div');p.className='adv-spell '+kind;p.style.left=start.x+'px';p.style.top=start.y+'px';arena.appendChild(p);
+ const dur=330,t0=performance.now();
+ const anim=t=>{const q=Math.min(1,(t-t0)/dur),ease=1-Math.pow(1-q,2);p.style.left=(start.x+(end.x-start.x)*ease)+'px';p.style.top=(start.y+(end.y-start.y)*ease-22*Math.sin(Math.PI*q))+'px';if(q<1)requestAnimationFrame(anim);else{p.remove();advSpellImpact(kind,end.x,end.y,arena);onImpact&&onImpact()}};
+ requestAnimationFrame(anim);
+}
+function advSpellImpact(kind,x,y,arena){
+ const b=document.createElement('div');b.className='adv-spell-impact '+kind;b.style.left=(x-50)+'px';b.style.top=(y-50)+'px';arena.appendChild(b);
+ $('advStage').classList.add('shake');$('advEnemyWrap').classList.add('hit');
+ setTimeout(()=>{$('advStage').classList.remove('shake');$('advEnemyWrap').classList.remove('hit')},360);
+ setTimeout(()=>b.remove(),520);
+}
+
 function advSpawnDmg(target,text,heal=false){
  const wrap=$(target==='hero'?'advHeroWrap':'advEnemyWrap'),d=document.createElement('div');d.className='adv-dmg';d.textContent=text;d.style.left=(35+Math.random()*25)+'%';d.style.top='20%';if(heal)d.style.color='#65c77a';wrap.appendChild(d);setTimeout(()=>d.remove(),850);
 }
@@ -1361,6 +1441,7 @@ function advBeginEncounter(index){
  advUpdateUI();advNextQuestion();
 }
 function advStart(){
+ AdvAudio.unlock();AdvAudio.startMusic();
  const cards=db.cards.filter(c=>c&&c.front&&c.back);
  if(!cards.length){alert('Du brauchst mindestens eine Karte für ein Abenteuer.');return}
  ensureAdventureMeta().runs++;
@@ -1400,7 +1481,7 @@ function advCorrectAnswer(card,userVal){
  return adventureRomajiAnswers(card).includes(u);
 }
 function advEnemyAttack(base){
- const s=advState;
+ const s=advState;AdvAudio.enemy();
  if(s.invisTurns>0){s.invisTurns--;$('advFeedback').textContent+=' 👻 Der Angriff geht ins Leere.';advUpdateUI();return}
  let dmg=base;if(s.shieldTurns>0){s.shieldTurns--;dmg=Math.max(1,Math.round(dmg*.5))}
  s.heroHp=Math.max(0,s.heroHp-dmg);advSpawnDmg('hero','-'+dmg);$('advStage').classList.add('shake');advDrawHero('hurt',false,10,()=>advDrawHero('idle',true,6));setTimeout(()=>$('advStage').classList.remove('shake'),360);
@@ -1420,16 +1501,24 @@ function advSubmitAnswer(){
  $('advInputRow').classList.add('hidden');$('advNextRow').classList.remove('hidden');
  const answer=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||s.current.back):(adventureRomajiAnswers(s.current)[0]||s.current.reading||s.current.front);
  if(correct){
+   AdvAudio.correct();
    s.combo++;s.bestCombo=Math.max(s.bestCombo,s.combo);if(fast)s.speedCombo++;else s.speedCombo=0;
    let dmg=Math.round(14*(1+Math.min(9,s.combo-1)*.13));let extra=0;
    if(s.speedCombo>=4){extra=40;s.speedCombo=0}
-   s.enemyHp=Math.max(0,s.enemyHp-dmg-extra);advDrawHero('attack1',false,12,()=>advDrawHero('idle',true,6));advSpawnDmg('enemy','-'+(dmg+extra));
+   if(extra){
+     const spell=['fire','ice','thunder'][(Math.floor(s.bestCombo/4)-1)%3];
+     advPlaySpell(spell,()=>{AdvAudio.hit();advSpawnDmg('enemy','-'+(dmg+extra));});
+   }else{
+     AdvAudio.hit();advDrawHero('attack1',false,12,()=>advDrawHero('idle',true,6));advSpawnDmg('enemy','-'+dmg);
+   }
+   s.enemyHp=Math.max(0,s.enemyHp-dmg-extra);
    $('advEnemyWrap').classList.add('hit');setTimeout(()=>$('advEnemyWrap').classList.remove('hit'),300);
    $('advFeedback').className='adv-feedback correct';$('advFeedback').textContent='✓ Treffer! '+(fast?'⚡ Schnell! ':'')+(extra?'✨ Blitz-Serie: +40 Schaden. ':'')+'Lösung: '+answer;
    if(s.combo%5===0){const heal=Math.min(36,s.heroHpMax-s.heroHp);s.heroHp+=heal;if(heal)advSpawnDmg('hero','+'+heal,true)}
    const counterChance=s.kind==='boss'?.35:s.kind==='elite'?.22:.08;
    if(s.enemyHp>0&&Math.random()<counterChance)setTimeout(()=>advEnemyAttack(s.kind==='boss'?18:s.kind==='elite'?14:10),260);
  }else{
+   AdvAudio.wrong();
    s.combo=0;s.speedCombo=0;
    $('advFeedback').className='adv-feedback wrong';$('advFeedback').textContent='✗ Nicht ganz. Deine Eingabe: „'+val+'“ · Lösung: '+answer;
    setTimeout(()=>advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15),180);
@@ -1449,16 +1538,16 @@ function advWinEncounter(){
  setTimeout(()=>{if(!advState)return;advState.heroHp=Math.min(advState.heroHpMax,advState.heroHp+28);advBeginEncounter(advState.encounterIndex+1)},700);
 }
 function advFinishRun(won){
- clearTimeout(advTimerHandle);const a=ensureAdventureMeta();if(won)a.wins++;
+ clearTimeout(advTimerHandle);AdvAudio.stopMusic();const a=ensureAdventureMeta();if(won)a.wins++;
  if(advState)a.bestCombo=Math.max(a.bestCombo||0,advState.bestCombo||0);save();
- if(won){advDrawHero('idle',true,6);alert('Abenteuer geschafft! Der Boss ist besiegt.');}
- else{advDrawHero('death',false,8);alert('Das Abenteuer endet hier. Deine Abenteuer-Statistik bleibt gespeichert.');}
+ if(won){AdvAudio.victory();advDrawHero('idle',true,6);alert('Abenteuer geschafft! Der Boss ist besiegt.');}
+ else{AdvAudio.defeat();advDrawHero('death',false,8);alert('Das Abenteuer endet hier. Deine Abenteuer-Statistik bleibt gespeichert.');}
  advState=null;showScreen('home');refresh();renderAdventureHomeStats();
 }
 function advUseItem(key){
  const s=advState;if(!s||s.awaiting)return;const inv=ensureAdventureMeta().inventory;if((inv[key]||0)<=0)return;
  if(key==='phoenix'){alert('Die Phönixfeder wird automatisch benutzt, wenn deine HP auf 0 fallen.');return}
- if(key==='heal'){if(s.heroHp>=s.heroHpMax)return;const heal=Math.min(60,s.heroHpMax-s.heroHp);s.heroHp+=heal;advSpawnDmg('hero','+'+heal,true)}
+ if(key==='heal'){if(s.heroHp>=s.heroHpMax)return;const heal=Math.min(60,s.heroHpMax-s.heroHp);s.heroHp+=heal;AdvAudio.heal();advSpawnDmg('hero','+'+heal,true)}
  if(key==='shield')s.shieldTurns+=4;
  if(key==='invis')s.invisTurns+=3;
  if(key==='hourglass')s.hourglassTurns+=5;
@@ -1467,6 +1556,7 @@ function advUseItem(key){
    const ans=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||''):(adventureRomajiAnswers(s.current)[0]||'');
    $('advHint').textContent='📜 Hinweis: '+ans.slice(0,Math.max(1,Math.ceil(ans.length*.4)))+'…';
  }
+ if(key!=='heal')AdvAudio.item();
  inv[key]--;save();advUpdateUI();
 }
 function renderAdventureHomeStats(){
@@ -1613,10 +1703,22 @@ $('editCurrent').onclick=()=>{if(current)openEditor(current)};
 
 
 $('startAdventure').onclick=advStart;
-$('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;clearTimeout(advTimerHandle);showScreen('home');refresh();renderAdventureHomeStats();}};
+$('advSoundBtn').onclick=()=>{AdvAudio.unlock();const on=AdvAudio.toggle();$('advSoundBtn').textContent=on?'🔊':'🔇';};
+
+$('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;clearTimeout(advTimerHandle);AdvAudio.stopMusic();showScreen('home');refresh();renderAdventureHomeStats();}};
 $('advSubmit').onclick=advSubmitAnswer;
 $('advNext').onclick=()=>{if(!advState)return;if(advState.heroHp<=0)advFinishRun(false);else if(advState.enemyHp<=0)advWinEncounter();else advNextQuestion();};
 $('advInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();advSubmitAnswer();}});
+document.addEventListener('keydown',e=>{
+ if(e.key!=='Enter'||!advState)return;
+ if(!$('adventure').classList.contains('active'))return;
+ if(advState.awaiting){
+   e.preventDefault();
+   if(advState.heroHp<=0)advFinishRun(false);
+   else if(advState.enemyHp<=0)advWinEncounter();
+   else advNextQuestion();
+ }
+});
 document.querySelectorAll('[data-adv-item]').forEach(b=>b.onclick=()=>advUseItem(b.dataset.advItem));
 
 $('cloudAccountBtn').onclick=openCloudModal;
