@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v6.5</title>
+<title>Kotodama SRS – Prototyp v7.0</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -120,6 +120,38 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .auth-grid{display:grid;grid-template-columns:1fr;gap:8px}
 .auth-grid input{width:100%;padding:10px;border-radius:8px;border:1px solid #6f6288;background:#171126;color:var(--ink)}
 
+
+/* v7 Abenteuer */
+.adventure-panel{border-color:#8a6234;background:linear-gradient(180deg,rgba(80,50,24,.28),rgba(32,23,48,.92))}
+.adv-stage{position:relative;min-height:250px;border:3px solid #160f20;border-radius:10px;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#405a42 0%,transparent 65%),linear-gradient(180deg,#24392a,#17251c 70%,#0e1711)}
+.adv-stage.elite{background:radial-gradient(ellipse at 50% 30%,#5a403d 0%,transparent 65%),linear-gradient(180deg,#382528,#24181b 70%,#140c0f)}
+.adv-stage.boss{background:radial-gradient(ellipse at 50% 30%,#513c68 0%,transparent 65%),linear-gradient(180deg,#302142,#1e142b 70%,#100a18)}
+.adv-arena{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:18px 20px 8px;min-height:215px}
+.adv-sprite{width:46%;display:flex;align-items:flex-end;justify-content:center;position:relative}
+.adv-sprite canvas{width:100%;max-width:190px;height:auto;image-rendering:pixelated}
+.adv-sprite.hit{animation:advHit .28s ease}
+.adv-stage.shake{animation:advShake .34s ease}
+@keyframes advHit{0%,100%{filter:none;transform:translateX(0)}45%{filter:brightness(2);transform:translateX(8px)}}
+@keyframes advShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}50%{transform:translateX(7px)}75%{transform:translateX(-4px)}}
+.adv-title{text-align:center;font-weight:900;color:var(--amber);font-size:15px;margin:4px 0 8px}
+.adv-kind{text-align:center;color:var(--teal);font-size:12px;min-height:16px}
+.adv-timer{height:7px;border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden;margin:8px 0}
+.adv-timer-fill{height:100%;width:100%;background:linear-gradient(90deg,#ff7140,#ffd166)}
+.adv-prompt{font-size:27px;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0 5px}
+.adv-reading{text-align:center;color:#75654a;min-height:20px}
+.adv-input-row{display:flex;gap:8px;margin-top:10px}
+.adv-input-row input{flex:1;min-width:0;padding:12px;border-radius:8px;border:2px solid #5f5073;background:#151020;color:var(--ink);font-size:18px}
+.adv-feedback{min-height:48px;text-align:center;margin-top:8px}
+.adv-feedback.correct{color:#2f7a48}.adv-feedback.wrong{color:#9b3d32}
+.adv-items{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+.adv-items button{font-size:12px}
+.adv-items .count{font-weight:900;color:var(--amber)}
+.adv-dmg{position:absolute;font-weight:900;font-size:20px;animation:advFloat .8s ease forwards;pointer-events:none}
+@keyframes advFloat{0%{opacity:0;transform:translateY(5px)}20%{opacity:1}100%{opacity:0;transform:translateY(-45px)}}
+.adv-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0}
+.adv-summary-grid>div{background:#1d162d;border:1px solid #55466b;border-radius:8px;padding:8px;text-align:center}
+.adv-summary-grid strong{display:block;font-size:18px;color:var(--amber)}
+
 @media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
@@ -127,7 +159,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v6.5</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.0</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -191,6 +223,20 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      </div>
    </div>
 
+   <div class="panel adventure-panel">
+     <div class="section-title">⚔️ 冒険（ぼうけん）– Abenteuer</div>
+     <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Er nutzt deine eigenen Karten, verändert aber niemals das SRS.</div>
+     <div class="row" style="margin-top:10px">
+       <select id="adventureDirection">
+         <option value="mixed">Gemischt</option>
+         <option value="jp-de">Japanisch → Deutsch</option>
+         <option value="de-jp">Deutsch → Japanisch (Romaji)</option>
+       </select>
+       <button class="btn primary" id="startAdventure">Abenteuer starten</button>
+     </div>
+     <div class="note" id="adventureHomeStats" style="margin-top:7px"></div>
+   </div>
+
    <div class="panel">
      <div style="font-weight:800;color:var(--teal);margin-bottom:6px">📚 Offline-Wörterbuch</div>
      <div class="dict-status" id="dictHomeStatus">Das vollständige JMdict wird beim ersten Start automatisch aus den GitHub-Ressourcen eingerichtet.</div>
@@ -235,7 +281,47 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div id="wordlist" class="wordlist"></div>
  </section>
 
- <section id="review" class="screen">
+ <section id="adventure" class="screen">
+   <div class="row" style="justify-content:space-between;margin-bottom:7px">
+     <button class="btn small" id="leaveAdventure">← Beenden</button>
+     <div class="adv-kind" id="advRunInfo"></div>
+   </div>
+   <div class="adv-title" id="advEnemyName">Gegner</div>
+   <div class="adv-stage" id="advStage">
+     <div class="adv-arena">
+       <div class="adv-sprite" id="advHeroWrap"><canvas id="advHero" width="288" height="252"></canvas></div>
+       <div class="adv-sprite" id="advEnemyWrap"><canvas id="advEnemy" width="336" height="336"></canvas></div>
+     </div>
+   </div>
+   <div class="panel" style="margin-top:8px">
+     <div class="hp"><b id="advEnemyHpName">GEGNER</b><div class="hpbar"><div id="advEnemyHpFill" class="fill enemy"></div></div><span id="advEnemyHpText"></span></div>
+     <div class="hp"><b>DU</b><div class="hpbar"><div id="advHeroHpFill" class="fill"></div></div><span id="advHeroHpText"></span></div>
+   </div>
+   <div class="combo" id="advCombo"></div>
+   <div class="adv-items" id="advItems">
+     <button class="btn small" data-adv-item="heal">🧪 Heilung <span class="count" id="advItemHeal">0</span></button>
+     <button class="btn small" data-adv-item="shield">🛡 Schild <span class="count" id="advItemShield">0</span></button>
+     <button class="btn small" data-adv-item="invis">👻 Unsichtbar <span class="count" id="advItemInvis">0</span></button>
+     <button class="btn small" data-adv-item="hint">📜 Hinweis <span class="count" id="advItemHint">0</span></button>
+     <button class="btn small" data-adv-item="hourglass">⏳ Sanduhr <span class="count" id="advItemHourglass">0</span></button>
+     <button class="btn small" data-adv-item="phoenix">🪶 Phönix <span class="count" id="advItemPhoenix">0</span></button>
+   </div>
+   <div class="paper reviewcard">
+     <div class="review-meta" id="advDirectionTag"></div>
+     <div class="adv-timer"><div class="adv-timer-fill" id="advTimerFill"></div></div>
+     <div class="adv-prompt" id="advPrompt"></div>
+     <div class="adv-reading" id="advPromptReading"></div>
+     <div class="note" id="advHint" style="text-align:center;min-height:18px"></div>
+     <div class="adv-input-row" id="advInputRow">
+       <input id="advInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Antwort eingeben …">
+       <button class="btn primary" id="advSubmit">OK</button>
+     </div>
+     <div class="adv-feedback" id="advFeedback"></div>
+     <div class="row hidden" id="advNextRow" style="justify-content:center;margin-top:8px"><button class="btn primary" id="advNext">Weiter</button></div>
+   </div>
+ </section>
+
+<section id="review" class="screen">
    <div class="battle" id="battleStage">
      <div class="arena">
        <div class="spriteWrap"><canvas id="hero" width="288" height="252"></canvas></div>
@@ -568,7 +654,7 @@ function showScreen(id){
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  $(id).classList.add('active');
  document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('primary',b.dataset.screen===id));
- $('addFab').classList.toggle('hidden',id==='review');
+ $('addFab').classList.toggle('hidden',id==='review'||id==='adventure');
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 
@@ -1100,6 +1186,295 @@ $('selectVisibleBtn').onclick=()=>{
 };
 $('clearSelectionBtn').onclick=()=>{selectedCards.clear();document.querySelectorAll('.card-select').forEach(cb=>cb.checked=false);updateSelectionCount();};
 
+
+/* ===================== v7 ADVENTURE MODE ===================== */
+let advState=null, advTimerHandle=null, advHeroTimer=null;
+const ADV_ENEMIES=[
+ {key:'m_green_mush',name:'Moosling'},
+ {key:'m_goblin',name:'Wortgoblin'},
+ {key:'m_wraith',name:'Schattengeist'}
+].filter(x=>IMAGE_SPRITES[x.key]);
+
+function ensureAdventureMeta(){
+ db.meta=db.meta||{};
+ if(!db.meta.adventure || typeof db.meta.adventure!=='object') db.meta.adventure={};
+ const a=db.meta.adventure;
+ if(!a.cardStats)a.cardStats={};
+ if(!a.inventory)a.inventory={heal:2,shield:1,invis:0,hint:1,hourglass:0,phoenix:0};
+ for(const k of ['heal','shield','invis','hint','hourglass','phoenix']) if(!Number.isFinite(a.inventory[k]))a.inventory[k]=0;
+ if(!Number.isFinite(a.runs))a.runs=0;
+ if(!Number.isFinite(a.wins))a.wins=0;
+ if(!Number.isFinite(a.bestCombo))a.bestCombo=0;
+ return a;
+}
+function adventureStat(card){
+ const a=ensureAdventureMeta(), s=a.cardStats[card.id]||(a.cardStats[card.id]={seen:0,correct:0,wrong:0,fast:0});
+ return s;
+}
+function adventureDifficulty(card){
+ const s=adventureStat(card);
+ if(!s.seen)return 0.72;
+ const error=s.wrong/Math.max(1,s.seen);
+ const slow=(s.correct-s.fast)/Math.max(1,s.correct);
+ return 0.55 + error*2.8 + slow*.7 + Math.min(1.2,s.wrong*.08);
+}
+function weightedPick(cards,power=1){
+ if(!cards.length)return null;
+ const weights=cards.map(x=>Math.pow(Math.max(.15,adventureDifficulty(x)),power));
+ const sum=weights.reduce((a,b)=>a+b,0);
+ let r=Math.random()*sum;
+ for(let i=0;i<cards.length;i++){r-=weights[i];if(r<=0)return cards[i]}
+ return cards[cards.length-1];
+}
+function buildAdventureDeck(kind,count){
+ const pool=db.cards.filter(c=>c&&c.front&&c.back);
+ if(!pool.length)return [];
+ let source=pool,power=1;
+ if(kind==='elite'){
+   source=[...pool].sort((a,b)=>adventureDifficulty(b)-adventureDifficulty(a)).slice(0,Math.max(5,Math.ceil(pool.length*.55)));
+   power=1.7;
+ }else if(kind==='boss'){
+   source=[...pool].sort((a,b)=>adventureDifficulty(b)-adventureDifficulty(a)).slice(0,Math.max(4,Math.ceil(pool.length*.32)));
+   power=2.4;
+ }
+ const out=[];
+ for(let i=0;i<count;i++){
+   let pick=weightedPick(source,power);
+   if(out.length>1 && pick && out[out.length-1].id===pick.id){
+     const alt=source.filter(x=>x.id!==pick.id);
+     if(alt.length)pick=weightedPick(alt,power);
+   }
+   if(pick)out.push(pick);
+ }
+ return out;
+}
+function adventureKanaToRomaji(text){
+ const map={
+ 'きゃ':'kya','きゅ':'kyu','きょ':'kyo','ぎゃ':'gya','ぎゅ':'gyu','ぎょ':'gyo','しゃ':'sha','しゅ':'shu','しょ':'sho','じゃ':'ja','じゅ':'ju','じょ':'jo',
+ 'ちゃ':'cha','ちゅ':'chu','ちょ':'cho','にゃ':'nya','にゅ':'nyu','にょ':'nyo','ひゃ':'hya','ひゅ':'hyu','ひょ':'hyo','びゃ':'bya','びゅ':'byu','びょ':'byo',
+ 'ぴゃ':'pya','ぴゅ':'pyu','ぴょ':'pyo','みゃ':'mya','みゅ':'myu','みょ':'myo','りゃ':'rya','りゅ':'ryu','りょ':'ryo',
+ 'あ':'a','い':'i','う':'u','え':'e','お':'o','か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko','が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go',
+ 'さ':'sa','し':'shi','す':'su','せ':'se','そ':'so','ざ':'za','じ':'ji','ず':'zu','ぜ':'ze','ぞ':'zo','た':'ta','ち':'chi','つ':'tsu','て':'te','と':'to',
+ 'だ':'da','ぢ':'ji','づ':'zu','で':'de','ど':'do','な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no','は':'ha','ひ':'hi','ふ':'fu','へ':'he','ほ':'ho',
+ 'ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo','ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po','ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
+ 'や':'ya','ゆ':'yu','よ':'yo','ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro','わ':'wa','を':'o','ん':'n','ゔ':'vu',
+ 'ア':'a','イ':'i','ウ':'u','エ':'e','オ':'o','カ':'ka','キ':'ki','ク':'ku','ケ':'ke','コ':'ko','サ':'sa','シ':'shi','ス':'su','セ':'se','ソ':'so',
+ 'タ':'ta','チ':'chi','ツ':'tsu','テ':'te','ト':'to','ナ':'na','ニ':'ni','ヌ':'nu','ネ':'ne','ノ':'no','ハ':'ha','ヒ':'hi','フ':'fu','ヘ':'he','ホ':'ho',
+ 'マ':'ma','ミ':'mi','ム':'mu','メ':'me','モ':'mo','ヤ':'ya','ユ':'yu','ヨ':'yo','ラ':'ra','リ':'ri','ル':'ru','レ':'re','ロ':'ro','ワ':'wa','ヲ':'o','ン':'n'
+ };
+ let s=(text||'').trim(),out='',gem=false;
+ for(let i=0;i<s.length;i++){
+   const ch=s[i];
+   if(ch==='っ'||ch==='ッ'){gem=true;continue}
+   if(ch==='ー'){const v=(out.match(/[aeiou](?!.*[aeiou])/g)||[]).pop();if(v)out+=v;continue}
+   const pair=s.slice(i,i+2); let r=map[pair];
+   if(r){i++;}else r=map[ch]||ch;
+   if(gem && /^[bcdfghjklmnpqrstvwxyz]/.test(r)){r=r[0]+r;gem=false}
+   out+=r;
+ }
+ return out;
+}
+function normalizeAdvText(s){
+ return (s||'').toLowerCase().normalize('NFKD').replace(/[‐‑‒–—―ー]/g,'-').replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
+}
+function normalizeAdvRomaji(s){
+ return (s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'').replace(/n'/g,'n');
+}
+function adventureGermanAnswers(card){
+ const raw=(card.back||'').split(/\n|;|,|\/|\|/).map(x=>x.replace(/\([^)]*\)/g,'').trim()).filter(Boolean);
+ const all=[card.back,...raw].map(normalizeAdvText).filter(Boolean);
+ return [...new Set(all)];
+}
+function adventureRomajiAnswers(card){
+ const reading=(card.reading||'').trim();
+ if(!reading)return [];
+ const base=normalizeAdvRomaji(adventureKanaToRomaji(reading));
+ const vals=new Set([base]);
+ if(base){
+   vals.add(base.replace(/ou/g,'o'));
+   vals.add(base.replace(/oo/g,'o'));
+   vals.add(base.replace(/uu/g,'u'));
+ }
+ return [...vals].filter(Boolean);
+}
+function adventureDirectionFor(card){
+ const pref=advState.direction;
+ if(pref==='jp-de')return 'jp-de';
+ if(pref==='de-jp')return adventureRomajiAnswers(card).length?'de-jp':'jp-de';
+ if(!adventureRomajiAnswers(card).length)return 'jp-de';
+ return Math.random()<.5?'jp-de':'de-jp';
+}
+function advDrawHero(anim='idle',loop=true,fps=6,onDone){
+ clearTimeout(advHeroTimer);
+ const arr=KNIGHT_FRAMES[anim]||KNIGHT_FRAMES.idle;if(!arr||!arr.length)return;
+ let n=0,c=$('advHero'),ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;
+ const step=()=>{frame(arr[n],img=>{ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height)});n++;
+  if(n>=arr.length){if(loop)n=0;else{onDone&&onDone();return}}advHeroTimer=setTimeout(step,1000/fps)};
+ step();
+}
+function advDrawEnemy(){
+ const e=ADV_ENEMIES[(advState.encounterIndex)%Math.max(1,ADV_ENEMIES.length)]||ADV_ENEMIES[0];
+ if(!e)return;
+ advState.enemyDef=e;
+ const img=new Image();img.src=IMAGE_SPRITES[e.key];
+ const canvas=$('advEnemy'),ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+ const draw=()=>{const s=Math.min(canvas.width/img.naturalWidth,canvas.height/img.naturalHeight),w=img.naturalWidth*s,h=img.naturalHeight*s;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,(canvas.width-w)/2,canvas.height-h,w,h)};
+ img.complete?draw():img.onload=draw;
+}
+function advSpawnDmg(target,text,heal=false){
+ const wrap=$(target==='hero'?'advHeroWrap':'advEnemyWrap'),d=document.createElement('div');d.className='adv-dmg';d.textContent=text;d.style.left=(35+Math.random()*25)+'%';d.style.top='20%';if(heal)d.style.color='#65c77a';wrap.appendChild(d);setTimeout(()=>d.remove(),850);
+}
+function advUpdateUI(){
+ if(!advState)return;
+ const s=advState;
+ $('advEnemyHpFill').style.width=Math.max(0,s.enemyHp/s.enemyHpMax*100)+'%';
+ $('advHeroHpFill').style.width=Math.max(0,s.heroHp/s.heroHpMax*100)+'%';
+ $('advEnemyHpText').textContent=Math.max(0,Math.round(s.enemyHp))+'/'+s.enemyHpMax;
+ $('advHeroHpText').textContent=Math.max(0,Math.round(s.heroHp))+'/'+s.heroHpMax;
+ $('advCombo').textContent=(s.combo>1?'🔥 Kombo x'+s.combo:'')+(s.speedCombo>0?'   ⚡ Blitz-Serie x'+s.speedCombo:'');
+ const inv=ensureAdventureMeta().inventory;
+ for(const k of ['heal','shield','invis','hint','hourglass','phoenix']){const el=$('advItem'+k[0].toUpperCase()+k.slice(1));if(el)el.textContent=inv[k]||0}
+ $('advRunInfo').textContent='Kampf '+(s.encounterIndex+1)+'/4 · '+(s.kind==='boss'?'BOSS':s.kind==='elite'?'ELITE':'NORMAL');
+}
+function advStartTimer(){
+ clearTimeout(advTimerHandle);
+ const fill=$('advTimerFill');fill.style.transition='none';fill.style.width='100%';void fill.offsetWidth;
+ const dur=advState.hourglassTurns>0?7000:4000;advState.questionDuration=dur;advState.questionStart=Date.now();
+ requestAnimationFrame(()=>{fill.style.transition='width linear '+(dur/1000)+'s';fill.style.width='0%'});
+}
+function advEncounterSpec(index){
+ return [
+   {kind:'normal',count:6,hp:105,name:'Streuner'},
+   {kind:'normal',count:7,hp:125,name:'Wortjäger'},
+   {kind:'elite',count:8,hp:165,name:'Elite der Erinnerung'},
+   {kind:'boss',count:10,hp:230,name:'Kotodama-Wächter'}
+ ][index];
+}
+function advBeginEncounter(index){
+ const spec=advEncounterSpec(index);if(!spec)return advFinishRun(true);
+ advState.encounterIndex=index;advState.kind=spec.kind;advState.deck=buildAdventureDeck(spec.kind,spec.count);advState.deckPos=0;
+ advState.enemyHp=spec.hp;advState.enemyHpMax=spec.hp;advState.awaiting=false;
+ const stage=$('advStage');stage.className='adv-stage'+(spec.kind==='elite'?' elite':spec.kind==='boss'?' boss':'');
+ advDrawEnemy();advDrawHero('idle',true,6);
+ $('advEnemyName').textContent=(spec.kind==='boss'?'🐉 ':spec.kind==='elite'?'👹 ':'👾 ')+spec.name;
+ $('advEnemyHpName').textContent=spec.kind==='boss'?'BOSS':spec.kind==='elite'?'ELITE':'GEGNER';
+ advUpdateUI();advNextQuestion();
+}
+function advStart(){
+ const cards=db.cards.filter(c=>c&&c.front&&c.back);
+ if(!cards.length){alert('Du brauchst mindestens eine Karte für ein Abenteuer.');return}
+ ensureAdventureMeta().runs++;
+ advState={direction:$('adventureDirection')?.value||'mixed',encounterIndex:0,kind:'normal',heroHp:180,heroHpMax:180,enemyHp:100,enemyHpMax:100,
+ combo:0,speedCombo:0,bestCombo:0,shieldTurns:0,invisTurns:0,hourglassTurns:0,awaiting:false,current:null,currentDirection:'jp-de'};
+ save();
+ showScreen('adventure');advBeginEncounter(0);
+}
+function advNextQuestion(){
+ const s=advState;if(!s)return;
+ if(s.heroHp<=0)return advFinishRun(false);
+ if(s.enemyHp<=0)return advWinEncounter();
+ if(s.deckPos>=s.deck.length){
+   s.deck=buildAdventureDeck(s.kind,Math.max(4,s.kind==='boss'?8:6));s.deckPos=0;
+ }
+ s.current=s.deck[s.deckPos++];s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;
+ $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
+ if(s.currentDirection==='jp-de'){
+   $('advDirectionTag').textContent='日本語 → DEUTSCH';
+   $('advPrompt').innerHTML=renderFront(s.current.front,s.current.reading);
+   $('advPromptReading').textContent=s.current.reading||'';
+   $('advInput').placeholder='Deutsche Übersetzung eingeben …';
+ }else{
+   $('advDirectionTag').textContent='DEUTSCH → 日本語 (Romaji)';
+   $('advPrompt').textContent=s.current.back;
+   $('advPromptReading').textContent='';
+   $('advInput').placeholder='Romaji eingeben …';
+ }
+ $('advInput').value='';advStartTimer();setTimeout(()=>$('advInput').focus(),60);advUpdateUI();
+}
+function advCorrectAnswer(card,userVal){
+ if(advState.currentDirection==='jp-de'){
+   const u=normalizeAdvText(userVal);if(!u)return false;
+   return adventureGermanAnswers(card).some(a=>u===a);
+ }
+ const u=normalizeAdvRomaji(userVal);if(!u)return false;
+ return adventureRomajiAnswers(card).includes(u);
+}
+function advEnemyAttack(base){
+ const s=advState;
+ if(s.invisTurns>0){s.invisTurns--;$('advFeedback').textContent+=' 👻 Der Angriff geht ins Leere.';advUpdateUI();return}
+ let dmg=base;if(s.shieldTurns>0){s.shieldTurns--;dmg=Math.max(1,Math.round(dmg*.5))}
+ s.heroHp=Math.max(0,s.heroHp-dmg);advSpawnDmg('hero','-'+dmg);$('advStage').classList.add('shake');advDrawHero('hurt',false,10,()=>advDrawHero('idle',true,6));setTimeout(()=>$('advStage').classList.remove('shake'),360);
+ if(s.heroHp<=0){
+   const inv=ensureAdventureMeta().inventory;
+   if((inv.phoenix||0)>0){inv.phoenix--;s.heroHp=Math.round(s.heroHpMax*.35);$('advFeedback').textContent+=' 🪶 Die Phönixfeder rettet dich!';advDrawHero('idle',true,6);save();}
+ }
+ advUpdateUI();
+}
+function advSubmitAnswer(){
+ const s=advState;if(!s||s.awaiting||!s.current)return;
+ const val=$('advInput').value.trim();if(!val)return;
+ s.awaiting=true;const correct=advCorrectAnswer(s.current,val),elapsed=Date.now()-s.questionStart,fast=correct&&elapsed<=s.questionDuration;
+ const st=adventureStat(s.current);st.seen++;
+ if(correct){st.correct++;if(fast)st.fast++;}else st.wrong++;
+ if(s.hourglassTurns>0)s.hourglassTurns--;
+ $('advInputRow').classList.add('hidden');$('advNextRow').classList.remove('hidden');
+ const answer=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||s.current.back):(adventureRomajiAnswers(s.current)[0]||s.current.reading||s.current.front);
+ if(correct){
+   s.combo++;s.bestCombo=Math.max(s.bestCombo,s.combo);if(fast)s.speedCombo++;else s.speedCombo=0;
+   let dmg=Math.round(14*(1+Math.min(9,s.combo-1)*.13));let extra=0;
+   if(s.speedCombo>=4){extra=40;s.speedCombo=0}
+   s.enemyHp=Math.max(0,s.enemyHp-dmg-extra);advDrawHero('attack1',false,12,()=>advDrawHero('idle',true,6));advSpawnDmg('enemy','-'+(dmg+extra));
+   $('advEnemyWrap').classList.add('hit');setTimeout(()=>$('advEnemyWrap').classList.remove('hit'),300);
+   $('advFeedback').className='adv-feedback correct';$('advFeedback').textContent='✓ Treffer! '+(fast?'⚡ Schnell! ':'')+(extra?'✨ Blitz-Serie: +40 Schaden. ':'')+'Lösung: '+answer;
+   if(s.combo%5===0){const heal=Math.min(36,s.heroHpMax-s.heroHp);s.heroHp+=heal;if(heal)advSpawnDmg('hero','+'+heal,true)}
+   const counterChance=s.kind==='boss'?.35:s.kind==='elite'?.22:.08;
+   if(s.enemyHp>0&&Math.random()<counterChance)setTimeout(()=>advEnemyAttack(s.kind==='boss'?18:s.kind==='elite'?14:10),260);
+ }else{
+   s.combo=0;s.speedCombo=0;
+   $('advFeedback').className='adv-feedback wrong';$('advFeedback').textContent='✗ Nicht ganz. Deine Eingabe: „'+val+'“ · Lösung: '+answer;
+   setTimeout(()=>advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15),180);
+ }
+ const a=ensureAdventureMeta();a.bestCombo=Math.max(a.bestCombo||0,s.bestCombo||0);save();advUpdateUI();
+}
+function advDropItem(kind){
+ const table=kind==='boss'?['phoenix','heal','shield','hourglass','invis','hint']:kind==='elite'?['heal','shield','invis','hourglass','hint','phoenix']:['heal','shield','hint','hourglass','invis'];
+ const key=table[Math.floor(Math.random()*table.length)],inv=ensureAdventureMeta().inventory;inv[key]=(inv[key]||0)+1;
+ return key;
+}
+function advWinEncounter(){
+ const s=advState,drop=advDropItem(s.kind);save();
+ const names={heal:'Heiltrank',shield:'Schild',invis:'Unsichtbarkeit',hint:'Hinweisrolle',hourglass:'Sanduhr',phoenix:'Phönixfeder'};
+ $('advFeedback').className='adv-feedback correct';$('advFeedback').textContent='🏆 Gegner besiegt! Gefunden: '+names[drop]+'.';
+ advUpdateUI();
+ setTimeout(()=>{if(!advState)return;advState.heroHp=Math.min(advState.heroHpMax,advState.heroHp+28);advBeginEncounter(advState.encounterIndex+1)},700);
+}
+function advFinishRun(won){
+ clearTimeout(advTimerHandle);const a=ensureAdventureMeta();if(won)a.wins++;
+ if(advState)a.bestCombo=Math.max(a.bestCombo||0,advState.bestCombo||0);save();
+ if(won){advDrawHero('idle',true,6);alert('Abenteuer geschafft! Der Boss ist besiegt.');}
+ else{advDrawHero('death',false,8);alert('Das Abenteuer endet hier. Deine Abenteuer-Statistik bleibt gespeichert.');}
+ advState=null;showScreen('home');refresh();renderAdventureHomeStats();
+}
+function advUseItem(key){
+ const s=advState;if(!s||s.awaiting)return;const inv=ensureAdventureMeta().inventory;if((inv[key]||0)<=0)return;
+ if(key==='phoenix'){alert('Die Phönixfeder wird automatisch benutzt, wenn deine HP auf 0 fallen.');return}
+ if(key==='heal'){if(s.heroHp>=s.heroHpMax)return;const heal=Math.min(60,s.heroHpMax-s.heroHp);s.heroHp+=heal;advSpawnDmg('hero','+'+heal,true)}
+ if(key==='shield')s.shieldTurns+=4;
+ if(key==='invis')s.invisTurns+=3;
+ if(key==='hourglass')s.hourglassTurns+=5;
+ if(key==='hint'){
+   if(!s.current)return;
+   const ans=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||''):(adventureRomajiAnswers(s.current)[0]||'');
+   $('advHint').textContent='📜 Hinweis: '+ans.slice(0,Math.max(1,Math.ceil(ans.length*.4)))+'…';
+ }
+ inv[key]--;save();advUpdateUI();
+}
+function renderAdventureHomeStats(){
+ const box=$('adventureHomeStats');if(!box)return;const a=ensureAdventureMeta();
+ const known=Object.values(a.cardStats||{}).filter(x=>x.seen>0).length;
+ box.textContent='Abenteuer: '+a.wins+'/'+a.runs+' Läufe gewonnen · beste Kombo '+a.bestCombo+' · '+known+' Wörter mit Kampfstatistik';
+}
+
 function chooseReviewDirection(card){
  if(reviewDirection==='jp-de' || reviewDirection==='de-jp') return reviewDirection;
  const state=cardStatus(card);
@@ -1235,6 +1610,14 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
 });
 $('leaveReview').onclick=()=>{showScreen('home');refresh()};
 $('editCurrent').onclick=()=>{if(current)openEditor(current)};
+
+
+$('startAdventure').onclick=advStart;
+$('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;clearTimeout(advTimerHandle);showScreen('home');refresh();renderAdventureHomeStats();}};
+$('advSubmit').onclick=advSubmitAnswer;
+$('advNext').onclick=()=>{if(!advState)return;if(advState.heroHp<=0)advFinishRun(false);else if(advState.enemyHp<=0)advWinEncounter();else advNextQuestion();};
+$('advInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();advSubmitAnswer();}});
+document.querySelectorAll('[data-adv-item]').forEach(b=>b.onclick=()=>advUseItem(b.dataset.advItem));
 
 $('cloudAccountBtn').onclick=openCloudModal;
 $('cloudModalClose').onclick=closeCloudModal;
