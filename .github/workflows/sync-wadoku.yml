@@ -2,6 +2,10 @@ name: Sync Wadoku German dictionary
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-wadoku.yml"
   schedule:
     - cron: "37 5 6 * *"
 
