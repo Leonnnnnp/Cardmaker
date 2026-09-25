@@ -48,7 +48,8 @@ jobs:
 
           xml_path=open("/tmp/wadoku/xml_path",encoding="utf-8").read().strip()
           source_file=open("/tmp/wadoku/source_file",encoding="utf-8").read().strip()
-          out_path="docs/resources/wadoku-de-compact.json.gz"
+          out_dir="docs/resources/wadoku-de-shards"
+          os.makedirs(out_dir,exist_ok=True)
 
           def local(tag):
               return tag.rsplit("}",1)[-1] if "}" in tag else tag
@@ -177,28 +178,50 @@ jobs:
               for key,vals in de.items()
           }
 
-          pack={"meta":{"source":"Wadoku.de","sourceFile":source_file,"sourceUrl":"https://www.wadoku.de/","licenseUrl":"https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz","entries":len(entries),"format":"kotodama-wadoku-v1"},"entries":entries,"jp":jp,"de":de}
-          with gzip.open(out_path,"wt",encoding="utf-8",compresslevel=9) as f:
-              json.dump(pack,f,ensure_ascii=False,separators=(",",":"))
-          print("Built",out_path,os.path.getsize(out_path),"bytes",len(entries),"entries",len(jp),"JP keys",len(de),"DE keys")
+          meta={"source":"Wadoku.de","sourceFile":source_file,"sourceUrl":"https://www.wadoku.de/","licenseUrl":"https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz","entries":len(entries),"format":"kotodama-wadoku-de-shard-v1"}
+
+          def shard_name(key):
+              ch=(key[:1] or "_").lower()
+              return ch if ch in "abcdefghijklmnopqrstuvwxyz0123456789" else "_"
+
+          shard_keys={}
+          for key in de:
+              shard_keys.setdefault(shard_name(key),[]).append(key)
+
+          manifest={"meta":meta,"shards":{}}
+          for shard,keys in shard_keys.items():
+              used=sorted({ref[0] for key in keys for ref in de[key]})
+              remap={old:i for i,old in enumerate(used)}
+              local_entries=[entries[i] for i in used]
+              local_de={key:[[remap[ref[0]],ref[1],ref[2]] for ref in de[key]] for key in keys}
+              pack={"meta":meta,"entries":local_entries,"de":local_de}
+              path=os.path.join(out_dir,shard+".json.gz")
+              with gzip.open(path,"wt",encoding="utf-8",compresslevel=9) as out:
+                  json.dump(pack,out,ensure_ascii=False,separators=(",",":"))
+              manifest["shards"][shard]={"bytes":os.path.getsize(path),"keys":len(keys),"entries":len(local_entries)}
+              print("Built shard",shard,os.path.getsize(path),"bytes",len(keys),"keys",len(local_entries),"entries")
+
+          with open(os.path.join(out_dir,"manifest.json"),"w",encoding="utf-8") as out:
+              json.dump(manifest,out,ensure_ascii=False,separators=(",",":"))
           PY
 
-      - name: Validate representative entries
+      - name: Validate representative German shards
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import gzip,json,unicodedata,re
-          p=json.load(gzip.open("docs/resources/wadoku-de-compact.json.gz","rt",encoding="utf-8"))
-          for key in ("長さ","連絡"):
-              ids=p["jp"].get(key,[])
-              print(key,[p["entries"][i] for i in ids[:3]])
-              if not ids:raise SystemExit("Missing representative Wadoku entry: "+key)
+          import gzip,json,unicodedata,re,os
           def norm(s):
               s=unicodedata.normalize("NFKD",s).lower()
               s="".join(ch for ch in s if not unicodedata.combining(ch)).replace("ß","ss")
               return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",s)).strip()
-          if not p["de"].get(norm("Länge")):raise SystemExit("German reverse index is missing Länge")
+          q=norm("Länge")
+          p=json.load(gzip.open("docs/resources/wadoku-de-shards/l.json.gz","rt",encoding="utf-8"))
+          refs=p["de"].get(q,[])
+          print("Länge refs",len(refs),[p["entries"][r[0]] for r in refs[:5]])
+          if not refs: raise SystemExit("German shard is missing Länge")
+          if any(x["bytes"]>8_000_000 for x in json.load(open("docs/resources/wadoku-de-shards/manifest.json",encoding="utf-8"))["shards"].values()):
+              raise SystemExit("A Wadoku shard is still too large for mobile use")
           PY
 
       - name: Commit updated Wadoku resource
@@ -207,7 +230,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/resources/wadoku-de-compact.json.gz
+          rm -f docs/resources/wadoku-de-compact.json.gz
+          git add -A docs/resources/wadoku-de-shards docs/resources/wadoku-de-compact.json.gz
           if git diff --cached --quiet; then
             echo "Wadoku resource unchanged."
           else
