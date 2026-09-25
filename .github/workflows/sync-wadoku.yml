@@ -181,8 +181,9 @@ jobs:
           meta={"source":"Wadoku.de","sourceFile":source_file,"sourceUrl":"https://www.wadoku.de/","licenseUrl":"https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz","entries":len(entries),"format":"kotodama-wadoku-de-shard-v1"}
 
           def shard_name(key):
-              ch=(key[:1] or "_").lower()
-              return ch if ch in "abcdefghijklmnopqrstuvwxyz0123456789" else "_"
+              s=(key[:2] or "_").lower()
+              s=re.sub(r"[^a-z0-9]","_",s)
+              return s or "_"
 
           shard_keys={}
           for key in de:
@@ -216,11 +217,11 @@ jobs:
               s="".join(ch for ch in s if not unicodedata.combining(ch)).replace("ß","ss")
               return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",s)).strip()
           q=norm("Länge")
-          p=json.load(gzip.open("docs/resources/wadoku-de-shards/l.json.gz","rt",encoding="utf-8"))
+          p=json.load(gzip.open("docs/resources/wadoku-de-shards/la.json.gz","rt",encoding="utf-8"))
           refs=p["de"].get(q,[])
           print("Länge refs",len(refs),[p["entries"][r[0]] for r in refs[:5]])
           if not refs: raise SystemExit("German shard is missing Länge")
-          if any(x["bytes"]>8_000_000 for x in json.load(open("docs/resources/wadoku-de-shards/manifest.json",encoding="utf-8"))["shards"].values()):
+          if any(x["bytes"]>2_000_000 for x in json.load(open("docs/resources/wadoku-de-shards/manifest.json",encoding="utf-8"))["shards"].values()):
               raise SystemExit("A Wadoku shard is still too large for mobile use")
           PY
 
