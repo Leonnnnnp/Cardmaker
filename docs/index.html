@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.1</title>
+<title>Kotodama SRS – Prototyp v8.2</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.2</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -899,8 +899,8 @@ async function loadInstalledWadoku(){
 }
 function wadokuShardName(q){
  const n=normalizeGermanLookup(q);
- const ch=(n[0]||'_').toLowerCase();
- return /^[a-z0-9]$/.test(ch)?ch:'_';
+ const raw=(n.slice(0,2)||'_').toLowerCase();
+ return raw.replace(/[^a-z0-9]/g,'_')||'_';
 }
 async function loadWadokuShardFor(q,force=false){
  const shard=wadokuShardName(q);
@@ -937,6 +937,7 @@ async function loadWadokuShardFor(q,force=false){
 async function installBundledWadoku(showAlert=true){
  try{
    WADOKU_SHARD_CACHE.clear();
+   try{await idbClear();}catch(e){console.warn(e)}
    const test=await loadWadokuShardFor('Länge',true);
    if(!test)throw new Error('Wadoku-Testshard konnte nicht geladen werden.');
    if(showAlert)alert('Wadoku ist bereit. Weitere Buchstabenbereiche werden automatisch bei Bedarf geladen.');
@@ -949,7 +950,6 @@ async function installBundledWadoku(showAlert=true){
 async function ensureWadoku(q){
  return !!(await loadWadokuShardFor(q));
 }
-function wadokuEntryByIndex(i){return WADOKU_PACK?.entries?.[i]||null}
 function wadokuPosLabel(code){
  const map={N:'Nomen',V:'Verb',V1:'Verb',V5:'Verb',Vs:'する-Verb',Adj:'Adjektiv',A:'Adjektiv',Adv:'Adverb',Pron:'Pronomen',Part:'Partikel',Conj:'Konjunktion',Int:'Interjektion'};
  return map[code]||code;
@@ -1208,26 +1208,30 @@ function renderLookupResults(results,source,compact=false){
 $('germanLookupBtn').onclick=async()=>{
  const q=$('germanLookupInput').value.trim().split(/\n+/)[0];
  if(!q){$('readingStatus').textContent='Bitte zuerst ein deutsches Wort eingeben.';return;}
- $('readingStatus').textContent='Suche in Wadoku …';$('readingStatus').style.color='#9a6b23';
- const wadokuReady=await ensureWadoku(q);
- if(wadokuReady){
+ const btn=$('germanLookupBtn');
+ btn.disabled=true;
+ $('readingStatus').textContent='Suche in Wadoku …';
+ $('readingStatus').style.color='#9a6b23';
+ try{
    const wr=await findWadokuGerman(q);
    if(wr.length){
      renderWadokuGermanResults(wr);
      $('readingStatus').textContent=wr.length+' Wadoku-Vorschläge gefunden · Bedeutungen bleiben getrennt.';
-     $('readingStatus').style.color='#2f7a48';return;
+     $('readingStatus').style.color='#2f7a48';
+   }else{
+     $('lookupResults').classList.remove('hidden');
+     $('lookupResults').innerHTML='<div class="lookup-item"><div class="lookup-gloss">Kein passender Wadoku-Eintrag gefunden.</div></div>';
+     $('readingStatus').textContent='Kein passender Wadoku-Eintrag gefunden.';
+     $('readingStatus').style.color='#9b3d32';
    }
- }
- // Fallback: current German JMdict index.
- if(!FULL_DICT)await loadInstalledDictionary();
- if(!FULL_DICT)await installBundledDictionary(false);
- if(FULL_DICT){
-   const res=findDictGerman(q);renderGermanLookupResults(res,q);
-   $('readingStatus').textContent=res.length?res.length+' JMdict-Fallbacktreffer gefunden.':'Kein Wörterbucheintrag gefunden.';
-   $('readingStatus').style.color=res.length?'#9a6b23':'#9b3d32';
- }else{
+ }catch(err){
+   console.error('Deutsche Wadoku-Suche fehlgeschlagen',err);
    $('lookupResults').classList.remove('hidden');
-   $('lookupResults').innerHTML='<div class="lookup-item">Kein deutsches Wörterbuch verfügbar.</div>';
+   $('lookupResults').innerHTML='<div class="lookup-item"><div class="lookup-gloss">Die deutsche Wörterbuchsuche konnte nicht geladen werden. Bitte Seite neu laden und erneut versuchen.</div></div>';
+   $('readingStatus').textContent='Wadoku-Suche fehlgeschlagen.';
+   $('readingStatus').style.color='#9b3d32';
+ }finally{
+   btn.disabled=false;
  }
 };
 $('germanLookupInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('germanLookupBtn').click();}});
