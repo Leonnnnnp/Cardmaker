@@ -29,13 +29,9 @@ jobs:
           unzip -p /tmp/jmdict/jmdict.zip '*.json' > /tmp/jmdict/jmdict-ger.json
 
           python3 - <<'PY'
-          import json, gzip, os, re, unicodedata
+          import json, gzip, os
           src="/tmp/jmdict/jmdict-ger.json"
           out="docs/resources/jmdict-ger-compact.json.gz"
-          rev_dir="docs/resources/jmdict-de-learning-shards"
-          os.makedirs(rev_dir,exist_ok=True)
-          for name in os.listdir(rev_dir):
-              os.remove(os.path.join(rev_dir,name))
           with open(src,encoding="utf-8") as f:
               root=json.load(f)
           words=root if isinstance(root,list) else root.get("words",[])
@@ -97,181 +93,10 @@ jobs:
           with gzip.open(out,"wt",encoding="utf-8",compresslevel=9) as f:
               json.dump(pack,f,ensure_ascii=False,separators=(",",":"))
           print("Built",out,os.path.getsize(out),"bytes",kept,"entries",len(idx),"keys")
-
-          # ---- Lernorientierter Deutsch -> Japanisch Index ----
-          # Anders als der bisherige Browser-Reverse-Index bleibt jeder JMdict-Sense getrennt.
-          # Dadurch kann "Frage" als Hauptbedeutung von 質問 höher gewichtet werden als
-          # "Frage" als Nebenbedeutung eines anderen Wortes.
-          def norm_de(s):
-              s=unicodedata.normalize("NFKD",s or "").lower()
-              s="".join(ch for ch in s if not unicodedata.combining(ch))
-              s=s.replace("ß","ss")
-              s=re.sub(r"[^a-z0-9]+"," ",s)
-              return re.sub(r"\s+"," ",s).strip()
-
-          def core_de(s):
-              return re.sub(r"^(der|die|das|ein|eine|einen|einem|einer|eines)\s+","",norm_de(s)).strip()
-
-          stopwords={
-              "der","die","das","ein","eine","einen","einem","einer","eines",
-              "und","oder","aber","mit","von","zu","zum","zur","im","in","am","an",
-              "auf","aus","fur","bei","als","sich","sein","haben","werden","ist","sind",
-              "war","wie","dass","doch","nur","auch","noch","des","dem","den"
-          }
-
-          rev_entries=[]
-          rev_index={}
-          rev_seen={}
-
-          def add_rev_key(key, ref):
-              if not key: return
-              rev_index.setdefault(key,[]).append(ref)
-
-          for w in words:
-              kanji=[x.get("text") for x in w.get("kanji",[]) if x.get("text")]
-              kana=[x.get("text") for x in w.get("kana",[]) if x.get("text")]
-              spellings=kanji or kana
-              if not spellings: continue
-
-              for sense_no,sense in enumerate(w.get("sense",[])):
-                  gloss=[]
-                  for g in sense.get("gloss",[]):
-                      if not g or not g.get("text"): continue
-                      lang=g.get("lang")
-                      if lang in (None,"ger","deu","de") and g["text"] not in gloss:
-                          gloss.append(g["text"])
-                  if not gloss: continue
-                  pos=[]
-                  for p in sense.get("partOfSpeech",[]):
-                      if p not in pos: pos.append(p)
-
-                  for spelling in spellings:
-                      readings=kana or [spelling]
-                      restricted=[
-                          k.get("text") for k in w.get("kana",[])
-                          if k.get("text")
-                          and isinstance(k.get("appliesToKanji"),list)
-                          and k["appliesToKanji"]
-                          and "*" not in k["appliesToKanji"]
-                          and spelling in k["appliesToKanji"]
-                      ]
-                      if restricted: readings=restricted
-                      reading=readings[0] if readings else spelling
-                      common=any(x.get("text")==spelling and x.get("common") for x in w.get("kanji",[])) or any(x.get("text")==reading and x.get("common") for x in w.get("kana",[]))
-
-                      sig=(spelling,reading,tuple(gloss),tuple(pos))
-                      ei=rev_seen.get(sig)
-                      if ei is None:
-                          ei=len(rev_entries)
-                          rev_seen[sig]=ei
-                          rev_entries.append({
-                              "w":spelling,
-                              "r":reading,
-                              "g":gloss[:10],
-                              "p":pos[:6],
-                              "c":bool(common)
-                          })
-
-                      for gi,g in enumerate(gloss[:10]):
-                          ng=norm_de(g)
-                          cg=core_de(g)
-                          # [entry index, quality, gloss position]
-                          add_rev_key(ng,[ei,3,gi])
-                          if cg and cg!=ng:
-                              add_rev_key(cg,[ei,2,gi])
-                          for token in re.findall(r"[a-z0-9]{4,}",ng):
-                              if token not in stopwords and token not in (ng,cg):
-                                  add_rev_key(token,[ei,1,gi])
-
-          # Deduplizieren und nach zwei deutschen Anfangszeichen sharden.
-          rev_index={
-              key:[list(t) for t in sorted(set(map(tuple,refs)),key=lambda x:(-x[1],x[2],x[0]))]
-              for key,refs in rev_index.items()
-          }
-
-          def shard_name(key):
-              s=(key[:2] or "_").lower()
-              s=re.sub(r"[^a-z0-9]","_",s)
-              return s or "_"
-
-          shard_keys={}
-          for key in rev_index:
-              shard_keys.setdefault(shard_name(key),[]).append(key)
-
-          manifest={
-              "meta":{
-                  "source":"JMdict German via jmdict-simplified",
-                  "dictDate":root.get("dictDate") or root.get("date") or "",
-                  "format":"kotodama-jmdict-de-learning-v1"
-              },
-              "shards":{}
-          }
-
-          for shard,keys in shard_keys.items():
-              used=sorted({ref[0] for key in keys for ref in rev_index[key]})
-              remap={old:i for i,old in enumerate(used)}
-              local_entries=[rev_entries[i] for i in used]
-              local_index={
-                  key:[[remap[ref[0]],ref[1],ref[2]] for ref in rev_index[key]]
-                  for key in keys
-              }
-              path=os.path.join(rev_dir,shard+".json.gz")
-              with gzip.open(path,"wt",encoding="utf-8",compresslevel=9) as out_f:
-                  json.dump({
-                      "meta":manifest["meta"],
-                      "entries":local_entries,
-                      "de":local_index
-                  },out_f,ensure_ascii=False,separators=(",",":"))
-              manifest["shards"][shard]={
-                  "bytes":os.path.getsize(path),
-                  "keys":len(keys),
-                  "entries":len(local_entries)
-              }
-
-          with open(os.path.join(rev_dir,"manifest.json"),"w",encoding="utf-8") as mf:
-              json.dump(manifest,mf,ensure_ascii=False,separators=(",",":"))
-
-          print("Built learning reverse shards",len(shard_keys),"shards",len(rev_entries),"sense entries",len(rev_index),"German keys")
           PY
 
           cp /tmp/jmdict/jmdict-ger.json docs/resources/jmdict-ger.json
           gzip -9 -f docs/resources/jmdict-ger.json
-
-      - name: Validate learning reverse index
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import gzip,json,re,unicodedata
-
-          def norm(s):
-              s=unicodedata.normalize("NFKD",s or "").lower()
-              s="".join(ch for ch in s if not unicodedata.combining(ch)).replace("ß","ss")
-              s=re.sub(r"[^a-z0-9]+"," ",s)
-              return re.sub(r"\s+"," ",s).strip()
-
-          def rank(query):
-              nq=norm(query)
-              shard=(nq[:2] or "_")
-              p=json.load(gzip.open(f"docs/resources/jmdict-de-learning-shards/{shard}.json.gz","rt",encoding="utf-8"))
-              out=[]
-              for ei,quality,gi in p["de"].get(nq,[]):
-                  e=p["entries"][ei]
-                  gloss=[norm(x) for x in e.get("g",[])]
-                  exact_first=bool(gloss and gloss[0]==nq)
-                  score=quality*10000 + (5000 if e.get("c") else 0) + (3500 if exact_first else 0) - gi*700 - max(0,len(gloss)-1)*80
-                  if re.search(r"[×△▽]",e.get("w","")): score-=1800
-                  out.append((score,e))
-              out.sort(key=lambda x:(-x[0],len(x[1].get("w","")),x[1].get("w","")))
-              return out[:12]
-
-          for q,target in [("Frage","質問"),("Länge","長さ")]:
-              top=rank(q)
-              print(q,[(s,e["w"],e["r"],e["g"][:4],e.get("c")) for s,e in top])
-              pos=next((i for i,(_,e) in enumerate(top) if e["w"]==target),None)
-              if pos is None or pos>2:
-                  raise SystemExit(f"{target} is not in top 3 for {q}: {pos}")
-          PY
 
       - name: Commit updated dictionary
         shell: bash
