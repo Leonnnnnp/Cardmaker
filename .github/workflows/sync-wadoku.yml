@@ -1,0 +1,190 @@
+name: Sync Wadoku German dictionary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 5 6 * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download latest Wadoku XML dump
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/resources /tmp/wadoku
+          INDEX_URL="https://www.wadoku.de/downloads/xml-export/"
+          FILE="$(curl -fsSL "$INDEX_URL" | grep -oE 'wadoku-xml-[0-9]{8}\.tar\.xz' | sort -Vu | tail -1)"
+          test -n "$FILE"
+          echo "Using $FILE"
+          curl -fL "$INDEX_URL$FILE" -o /tmp/wadoku/wadoku.tar.xz
+          tar -xJf /tmp/wadoku/wadoku.tar.xz -C /tmp/wadoku
+          XML="$(find /tmp/wadoku -type f -name '*.xml' | sort | head -1)"
+          test -n "$XML"
+          echo "$XML" > /tmp/wadoku/xml_path
+          echo "$FILE" > /tmp/wadoku/source_file
+
+      - name: Build sense-preserving compact index
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,json,gzip,unicodedata
+          import xml.etree.ElementTree as ET
+
+          xml_path=open("/tmp/wadoku/xml_path",encoding="utf-8").read().strip()
+          source_file=open("/tmp/wadoku/source_file",encoding="utf-8").read().strip()
+          out_path="docs/resources/wadoku-de-compact.json.gz"
+
+          def local(tag):
+              return tag.rsplit("}",1)[-1] if "}" in tag else tag
+
+          def text(el):
+              parts=[]
+              for t in el.itertext():
+                  t=re.sub(r"\s+"," ",t or "").strip()
+                  if t: parts.append(t)
+              s=" ".join(parts)
+              s=re.sub(r"\s+([,.;:!?%)\]])",r"\1",s)
+              s=re.sub(r"([([])\s+",r"\1",s)
+              return s.strip()
+
+          def norm(s):
+              s=unicodedata.normalize("NFKD",s or "").lower()
+              s="".join(ch for ch in s if not unicodedata.combining(ch))
+              s=s.replace("ß","ss")
+              s=re.sub(r"[^a-z0-9]+"," ",s)
+              return re.sub(r"\s+"," ",s).strip()
+
+          def core(s):
+              return re.sub(r"^(der|die|das|ein|eine|einen|einem|einer|eines)\s+","",norm(s)).strip()
+
+          def add(idx,key,value):
+              if not key:return
+              arr=idx.setdefault(key,[])
+              if value not in arr:arr.append(value)
+
+          entries=[];jp={};de={}
+
+          for _,elem in ET.iterparse(xml_path,events=("end",)):
+              if local(elem.tag)!="entry":
+                  continue
+              form=next((x for x in elem if local(x.tag)=="form"),None)
+              if form is None:
+                  elem.clear();continue
+
+              orths=[];heads=[];reading=""
+              for n in form.iter():
+                  ln=local(n.tag)
+                  if ln=="orth":
+                      v=text(n)
+                      if v:
+                          orths.append(v)
+                          if n.attrib.get("midashigo")=="true":heads.append(v)
+                  elif ln=="hira" and not reading:
+                      reading=text(n)
+                  elif ln=="pron" and not reading and n.attrib.get("type")!="hatsuon":
+                      reading=text(n)
+              if not orths:
+                  elem.clear();continue
+              word=(heads or orths)[0]
+              if not reading:
+                  kana=[x for x in orths if re.fullmatch(r"[ぁ-ゖァ-ヺー・]+",x)]
+                  reading=kana[0] if kana else word
+
+              entry_pos=[]
+              for child in elem:
+                  if local(child.tag)=="gramGrp":
+                      for p in child.iter():
+                          if local(p.tag)=="pos":
+                              v=p.attrib.get("type") or text(p)
+                              if v and v not in entry_pos:entry_pos.append(v)
+
+              senses=[]
+              for sense in [x for x in elem if local(x.tag)=="sense"]:
+                  spos=[];usage=[];gloss=[]
+                  for n in sense:
+                      ln=local(n.tag)
+                      if ln=="gramGrp":
+                          for p in n.iter():
+                              if local(p.tag)=="pos":
+                                  v=p.attrib.get("type") or text(p)
+                                  if v and v not in spos:spos.append(v)
+                      elif ln=="usg":
+                          v=text(n)
+                          attrs=[f"{k}:{val}" for k,val in n.attrib.items() if val]
+                          label=" · ".join(([v] if v else [])+attrs)
+                          if label and label not in usage:usage.append(label)
+                      elif ln=="trans":
+                          lang=n.attrib.get("lang")
+                          if lang and lang not in ("de","deu","ger"):continue
+                          for tr in n.iter():
+                              if local(tr.tag)=="tr":
+                                  v=text(tr)
+                                  if v and v not in gloss:gloss.append(v)
+                  if gloss:senses.append({"p":spos,"u":usage[:4],"g":gloss[:10]})
+
+              if not senses:
+                  elem.clear();continue
+
+              idx=len(entries)
+              rec={"id":elem.attrib.get("id",""),"w":word,"r":reading,"p":entry_pos[:6],"s":senses[:12],"he":elem.attrib.get("HE")=="true"}
+              entries.append(rec)
+
+              for spelling in dict.fromkeys(orths+[reading]):
+                  add(jp,spelling,idx)
+
+              for si,s in enumerate(rec["s"]):
+                  for gloss in s["g"]:
+                      ng=norm(gloss);cg=core(gloss)
+                      add(de,ng,[idx,si,3])
+                      if cg and cg!=ng:add(de,cg,[idx,si,2])
+                      for token in re.findall(r"[a-z0-9]{3,}",ng):
+                          if token not in (ng,cg):add(de,token,[idx,si,1])
+
+              elem.clear()
+
+          pack={"meta":{"source":"Wadoku.de","sourceFile":source_file,"sourceUrl":"https://www.wadoku.de/","licenseUrl":"https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz","entries":len(entries),"format":"kotodama-wadoku-v1"},"entries":entries,"jp":jp,"de":de}
+          with gzip.open(out_path,"wt",encoding="utf-8",compresslevel=9) as f:
+              json.dump(pack,f,ensure_ascii=False,separators=(",",":"))
+          print("Built",out_path,os.path.getsize(out_path),"bytes",len(entries),"entries",len(jp),"JP keys",len(de),"DE keys")
+          PY
+
+      - name: Validate representative entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip,json,unicodedata,re
+          p=json.load(gzip.open("docs/resources/wadoku-de-compact.json.gz","rt",encoding="utf-8"))
+          for key in ("長さ","連絡"):
+              ids=p["jp"].get(key,[])
+              print(key,[p["entries"][i] for i in ids[:3]])
+              if not ids:raise SystemExit("Missing representative Wadoku entry: "+key)
+          def norm(s):
+              s=unicodedata.normalize("NFKD",s).lower()
+              s="".join(ch for ch in s if not unicodedata.combining(ch)).replace("ß","ss")
+              return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",s)).strip()
+          if not p["de"].get(norm("Länge")):raise SystemExit("German reverse index is missing Länge")
+          PY
+
+      - name: Commit updated Wadoku resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/resources/wadoku-de-compact.json.gz
+          if git diff --cached --quiet; then
+            echo "Wadoku resource unchanged."
+          else
+            git commit -m "Update Wadoku German dictionary resource"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
