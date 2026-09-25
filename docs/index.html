@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.4</title>
+<title>Kotodama SRS – Prototyp v8.5</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.4</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.5</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -902,6 +902,16 @@ async function decodeGzipJsonResponse(resp){
  if(!resp.ok)throw new Error('HTTP '+resp.status);
  const buf=await resp.arrayBuffer();
  if(!buf.byteLength)throw new Error('Leere Wörterbuchdatei.');
+ const bytes=new Uint8Array(buf);
+
+ // Manche Hosts/Browser liefern .gz bereits transparent entpackt aus.
+ // Nur echte GZIP-Bytes beginnen mit 1F 8B.
+ const isGzip=bytes.length>=2 && bytes[0]===0x1f && bytes[1]===0x8b;
+ if(!isGzip){
+   const text=new TextDecoder('utf-8').decode(bytes);
+   return JSON.parse(text);
+ }
+
  if('DecompressionStream' in window){
    try{
      const stream=new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -911,7 +921,7 @@ async function decodeGzipJsonResponse(resp){
    }
  }
  const pako=await ensurePako();
- const text=pako.ungzip(new Uint8Array(buf),{to:'string'});
+ const text=pako.ungzip(bytes,{to:'string'});
  return JSON.parse(text);
 }
 async function fetchGzipJson(url,rawFallback=null){
@@ -1004,7 +1014,7 @@ async function installBundledWadoku(showAlert=true){
    if(showAlert)alert('Wadoku ist bereit. Weitere Buchstabenbereiche werden automatisch bei Bedarf geladen.');
    return true;
  }catch(e){
-   if(showAlert)alert('Wadoku konnte nicht geladen werden.\n\nDetails: '+e.message);
+   if(showAlert)alert('Wadoku konnte nicht geladen werden.\n\nDetails: '+e.message+'\n\nVersion: v8.5');
    return false;
  }
 }
