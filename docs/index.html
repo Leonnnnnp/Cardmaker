@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.0</title>
+<title>Kotodama SRS – Prototyp v8.1</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.0</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.1</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -838,9 +838,10 @@ $('autoReadingBtn').onclick=autoReading;
 const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compactIndex', WADOKU_KEY='wadokuDePack';
 const JMDICT_RELEASE='3.6.2+20260921173324';
 const JMDICT_URL='./resources/jmdict-ger-compact.json.gz';
-const WADOKU_URL='./resources/wadoku-de-compact.json.gz';
+const WADOKU_SHARD_BASE='./resources/wadoku-de-shards/';
 let FULL_DICT=null, DICT_META=null;
-let WADOKU_PACK=null, WADOKU_META=null;
+let WADOKU_META=null;
+const WADOKU_SHARD_CACHE=new Map();
 let GERMAN_DICT_RECORDS=null;
 const GERMAN_LOOKUP_CACHE=new Map();
 
@@ -883,49 +884,70 @@ function setDictProgress(pct,show=true){
 function setWadokuStatus(text,good=false){
  const e=$('wadokuHomeStatus');if(e){e.textContent=text;e.style.color=good?'#67d27b':'';}
 }
+
 async function loadInstalledWadoku(){
  try{
-   const pack=await idbGet(WADOKU_KEY);
-   if(pack&&pack.entries&&pack.jp&&pack.de){
-     WADOKU_PACK=pack;WADOKU_META=pack.meta||{};
-     setWadokuStatus('Deutsch · Wadoku: '+(WADOKU_META.entries||'?')+' Einträge lokal bereit.',true);
+   const meta=await idbGet('wadokuManifestMeta');
+   if(meta){
+     WADOKU_META=meta;
+     setWadokuStatus('Deutsch · Wadoku: Lazy-Loading aktiv.',true);
      return true;
    }
  }catch(e){console.warn(e)}
- setWadokuStatus('Deutsch · Wadoku: noch nicht lokal eingerichtet.');
+ setWadokuStatus('Deutsch · Wadoku: wird bei der Suche automatisch geladen.');
  return false;
 }
-async function fetchGzipJson(url){
- const resp=await fetch(url,{cache:'no-cache'});
- if(!resp.ok)throw new Error('Ressource nicht gefunden (HTTP '+resp.status+').');
- if(!('DecompressionStream' in window))throw new Error('Dieser Browser unterstützt die benötigte GZIP-Dekomprimierung nicht.');
- const stream=resp.body.pipeThrough(new DecompressionStream('gzip'));
- return JSON.parse(await new Response(stream).text());
+function wadokuShardName(q){
+ const n=normalizeGermanLookup(q);
+ const ch=(n[0]||'_').toLowerCase();
+ return /^[a-z0-9]$/.test(ch)?ch:'_';
+}
+async function loadWadokuShardFor(q,force=false){
+ const shard=wadokuShardName(q);
+ if(!force&&WADOKU_SHARD_CACHE.has(shard))return WADOKU_SHARD_CACHE.get(shard);
+ const key='wadokuShard:'+shard;
+ if(!force){
+   try{
+     const cached=await idbGet(key);
+     if(cached&&cached.entries&&cached.de){
+       WADOKU_SHARD_CACHE.set(shard,cached);
+       setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
+       return cached;
+     }
+   }catch(e){console.warn(e)}
+ }
+ try{
+   setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' wird geladen …');
+   const pack=await fetchGzipJson(WADOKU_SHARD_BASE+encodeURIComponent(shard)+'.json.gz');
+   if(!pack||!Array.isArray(pack.entries)||!pack.de)throw new Error('Ungültiges Wadoku-Shard-Format.');
+   WADOKU_META=pack.meta||WADOKU_META||{};
+   WADOKU_SHARD_CACHE.set(shard,pack);
+   try{
+     await idbSet(key,pack);
+     await idbSet('wadokuManifestMeta',WADOKU_META||{});
+   }catch(e){console.warn('Wadoku-Cache konnte nicht gespeichert werden',e)}
+   setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
+   return pack;
+ }catch(e){
+   console.error(e);
+   setWadokuStatus('Deutsch · Wadoku konnte für diese Suche nicht geladen werden; JMdict-Fallback wird verwendet.');
+   return null;
+ }
 }
 async function installBundledWadoku(showAlert=true){
  try{
-   setWadokuStatus('Deutsch · Wadoku wird geladen …');
-   setDictProgress(8,true);
-   const pack=await fetchGzipJson(WADOKU_URL);
-   if(!pack||!Array.isArray(pack.entries)||!pack.jp||!pack.de)throw new Error('Ungültiges Wadoku-Format.');
-   WADOKU_PACK=pack;WADOKU_META=pack.meta||{};
-   setDictProgress(72,true);
-   await idbSet(WADOKU_KEY,pack);
-   setDictProgress(100,true);
-   setWadokuStatus('Deutsch · Wadoku: '+(WADOKU_META.entries||'?')+' Einträge lokal bereit.',true);
-   setTimeout(()=>setDictProgress(0,false),700);
+   WADOKU_SHARD_CACHE.clear();
+   const test=await loadWadokuShardFor('Länge',true);
+   if(!test)throw new Error('Wadoku-Testshard konnte nicht geladen werden.');
+   if(showAlert)alert('Wadoku ist bereit. Weitere Buchstabenbereiche werden automatisch bei Bedarf geladen.');
    return true;
  }catch(e){
-   console.error(e);setDictProgress(0,false);
-   setWadokuStatus('Deutsch · Wadoku konnte nicht geladen werden; JMdict-Fallback bleibt verfügbar.');
    if(showAlert)alert('Wadoku konnte nicht geladen werden.\n\nDetails: '+e.message);
    return false;
  }
 }
-async function ensureWadoku(){
- if(WADOKU_PACK)return true;
- if(await loadInstalledWadoku())return true;
- return installBundledWadoku(false);
+async function ensureWadoku(q){
+ return !!(await loadWadokuShardFor(q));
 }
 function wadokuEntryByIndex(i){return WADOKU_PACK?.entries?.[i]||null}
 function wadokuPosLabel(code){
@@ -936,25 +958,20 @@ function wadokuPosText(entry,sense){
  const p=[...(sense?.p||[]),...(entry?.p||[])].filter(Boolean);
  return [...new Set(p)].map(wadokuPosLabel).join(' · ');
 }
-function findWadokuJapanese(q){
- q=(q||'').trim();if(!q||!WADOKU_PACK)return [];
- let ids=WADOKU_PACK.jp[q]||[];
- if(!ids.length){
-   const a=analyzeLocal(q),base=a?.base;
-   if(base&&base!==q)ids=WADOKU_PACK.jp[base]||[];
- }
- return [...new Set(ids)].slice(0,10).map(wadokuEntryByIndex).filter(Boolean);
-}
-function findWadokuGerman(q){
- const nq=normalizeGermanLookup(q);if(!nq||!WADOKU_PACK)return [];
- let refs=WADOKU_PACK.de[nq]||[];
+function findWadokuJapanese(q){ return []; }
+
+async function findWadokuGerman(q){
+ const nq=normalizeGermanLookup(q);if(!nq)return [];
+ const pack=await loadWadokuShardFor(nq);
+ if(!pack)return [];
+ let refs=pack.de[nq]||[];
  if(!refs.length){
    const core=germanGlossCore(nq);
-   if(core&&core!==nq)refs=WADOKU_PACK.de[core]||[];
+   if(core&&core!==nq)refs=pack.de[core]||[];
  }
  const scored=[],seen=new Set();
  for(const ref of refs){
-   const [ei,si,quality]=ref,e=wadokuEntryByIndex(ei),s=e?.s?.[si];
+   const [ei,si,quality]=ref,e=pack.entries?.[ei],s=e?.s?.[si];
    if(!e||!s)continue;
    const key=ei+':'+si;if(seen.has(key))continue;seen.add(key);
    const shortest=Math.min(...(s.g||['']).map(x=>normalizeGermanLookup(x).length));
@@ -1192,9 +1209,9 @@ $('germanLookupBtn').onclick=async()=>{
  const q=$('germanLookupInput').value.trim().split(/\n+/)[0];
  if(!q){$('readingStatus').textContent='Bitte zuerst ein deutsches Wort eingeben.';return;}
  $('readingStatus').textContent='Suche in Wadoku …';$('readingStatus').style.color='#9a6b23';
- const wadokuReady=await ensureWadoku();
+ const wadokuReady=await ensureWadoku(q);
  if(wadokuReady){
-   const wr=findWadokuGerman(q);
+   const wr=await findWadokuGerman(q);
    if(wr.length){
      renderWadokuGermanResults(wr);
      $('readingStatus').textContent=wr.length+' Wadoku-Vorschläge gefunden · Bedeutungen bleiben getrennt.';
@@ -1202,8 +1219,7 @@ $('germanLookupBtn').onclick=async()=>{
    }
  }
  // Fallback: current German JMdict index.
- if(!FULL_DICT)await loadInstalledWadoku();
-loadInstalledDictionary();
+ if(!FULL_DICT)await loadInstalledDictionary();
  if(!FULL_DICT)await installBundledDictionary(false);
  if(FULL_DICT){
    const res=findDictGerman(q);renderGermanLookupResults(res,q);
@@ -1219,24 +1235,14 @@ $('germanLookupInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.prev
 $('dictLookupBtn').onclick=async()=>{
  const q=$('frontInput').value.trim().split(/\n+/)[0];
  if(!q){$('readingStatus').textContent='Bitte zuerst ein japanisches Wort eingeben.';return;}
- $('readingStatus').textContent='Suche in Wadoku …';$('readingStatus').style.color='#9a6b23';
- const wadokuReady=await ensureWadoku();
- if(wadokuReady){
-   const wr=findWadokuJapanese(q);
-   if(wr.length){
-     renderWadokuJapaneseResults(wr);
-     $('readingStatus').textContent='Wadoku-Treffer gefunden · wähle den passenden Bedeutungsblock.';
-     $('readingStatus').style.color='#2f7a48';return;
-   }
- }
  if(!FULL_DICT)await loadInstalledDictionary();
  if(!FULL_DICT)await installBundledDictionary(false);
  if(FULL_DICT){
    const a=analyzeLocal(q),base=(a&&a.base)||q;
    let res=findDict(q);if(!res.length&&base!==q)res=findDict(base);
    renderLookupResults(res,q);
-   $('readingStatus').textContent=res.length?'Kein Wadoku-Treffer · JMdict-Fallback angezeigt.':'Kein Wörterbucheintrag gefunden.';
-   $('readingStatus').style.color=res.length?'#9a6b23':'#9b3d32';
+   $('readingStatus').textContent=res.length?'JMdict-Treffer gefunden.':'Kein Wörterbucheintrag gefunden.';
+   $('readingStatus').style.color=res.length?'#2f7a48':'#9b3d32';
  }else{
    $('lookupResults').classList.remove('hidden');
    $('lookupResults').innerHTML='<div class="lookup-item">Kein Wörterbuch verfügbar.</div>';
@@ -1320,7 +1326,7 @@ $('dictFile').addEventListener('change',async e=>{
 $('removeDictBtn').onclick=async()=>{
  if(!FULL_DICT && !(await idbGet(DICT_KEY))) return alert('Es ist kein vollständiges Wörterbuch installiert.');
  if(!confirm('Das installierte Wörterbuch aus diesem Browser entfernen? Deine Karten bleiben erhalten.')) return;
- await idbClear(); FULL_DICT=null; DICT_META=null; WADOKU_PACK=null; WADOKU_META=null; GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear(); setWadokuStatus('Deutsch · Wadoku entfernt.'); setDictStatus('JMdict entfernt. Die kleine Offline-Hilfe bleibt verfügbar.');
+ await idbClear(); FULL_DICT=null; DICT_META=null; WADOKU_META=null; WADOKU_SHARD_CACHE.clear(); GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear(); setWadokuStatus('Deutsch · Wadoku entfernt.'); setDictStatus('JMdict entfernt. Die kleine Offline-Hilfe bleibt verfügbar.');
 };
 loadInstalledDictionary();
 
