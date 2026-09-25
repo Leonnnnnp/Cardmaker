@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.3</title>
+<title>Kotodama SRS – Prototyp v8.4</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.3</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.4</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -839,6 +839,7 @@ const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compact
 const JMDICT_RELEASE='3.6.2+20260921173324';
 const JMDICT_URL='./resources/jmdict-ger-compact.json.gz';
 const WADOKU_SHARD_BASE='./resources/wadoku-de-shards/';
+const WADOKU_RAW_BASE='https://raw.githubusercontent.com/Leonnnnnp/Cardmaker/main/docs/resources/wadoku-de-shards/';
 let FULL_DICT=null, DICT_META=null;
 let WADOKU_META=null;
 const WADOKU_SHARD_CACHE=new Map();
@@ -885,6 +886,55 @@ function setWadokuStatus(text,good=false){
  const e=$('wadokuHomeStatus');if(e){e.textContent=text;e.style.color=good?'#67d27b':'';}
 }
 
+
+async function ensurePako(){
+ if(window.pako)return window.pako;
+ await new Promise((resolve,reject)=>{
+   const s=document.createElement('script');
+   s.src='https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';
+   s.onload=()=>window.pako?resolve():reject(new Error('Pako wurde nicht initialisiert.'));
+   s.onerror=()=>reject(new Error('Pako konnte nicht geladen werden.'));
+   document.head.appendChild(s);
+ });
+ return window.pako;
+}
+async function decodeGzipJsonResponse(resp){
+ if(!resp.ok)throw new Error('HTTP '+resp.status);
+ const buf=await resp.arrayBuffer();
+ if(!buf.byteLength)throw new Error('Leere Wörterbuchdatei.');
+ if('DecompressionStream' in window){
+   try{
+     const stream=new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+     return JSON.parse(await new Response(stream).text());
+   }catch(e){
+     console.warn('DecompressionStream fehlgeschlagen, versuche Pako.',e);
+   }
+ }
+ const pako=await ensurePako();
+ const text=pako.ungzip(new Uint8Array(buf),{to:'string'});
+ return JSON.parse(text);
+}
+async function fetchGzipJson(url,rawFallback=null){
+ let firstError=null;
+ try{
+   const resp=await fetch(url,{cache:'no-store'});
+   return await decodeGzipJsonResponse(resp);
+ }catch(e){
+   firstError=e;
+   console.warn('Primärer Wörterbuchabruf fehlgeschlagen:',url,e);
+ }
+ if(rawFallback){
+   try{
+     const resp=await fetch(rawFallback,{cache:'no-store'});
+     return await decodeGzipJsonResponse(resp);
+   }catch(e){
+     console.warn('Raw-GitHub-Fallback fehlgeschlagen:',rawFallback,e);
+     throw new Error('Pages: '+(firstError?.message||firstError)+' · Raw: '+(e?.message||e));
+   }
+ }
+ throw firstError||new Error('Wörterbuchabruf fehlgeschlagen.');
+}
+
 async function loadInstalledWadoku(){
  try{
    const meta=await idbGet('wadokuManifestMeta');
@@ -903,6 +953,7 @@ function wadokuShardName(q){
  return raw.replace(/[^a-z0-9]/g,'_')||'_';
 }
 async function loadWadokuShardFor(q,force=false){
+ loadWadokuShardFor.lastError=null;
  const primary=wadokuShardName(q);
  const legacy=(normalizeGermanLookup(q)[0]||'_').toLowerCase().replace(/[^a-z0-9]/g,'_');
  const candidates=[primary,...(legacy&&legacy!==primary?[legacy]:[])];
@@ -924,7 +975,8 @@ async function loadWadokuShardFor(q,force=false){
 
    try{
      setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' wird geladen …');
-     const pack=await fetchGzipJson(WADOKU_SHARD_BASE+encodeURIComponent(shard)+'.json.gz');
+     const file=encodeURIComponent(shard)+'.json.gz';
+     const pack=await fetchGzipJson(WADOKU_SHARD_BASE+file,WADOKU_RAW_BASE+file);
      if(!pack||!Array.isArray(pack.entries)||!pack.de)throw new Error('Ungültiges Wadoku-Shard-Format.');
      WADOKU_META=pack.meta||WADOKU_META||{};
      WADOKU_SHARD_CACHE.set(shard,pack);
@@ -936,18 +988,19 @@ async function loadWadokuShardFor(q,force=false){
      return pack;
    }catch(e){
      console.warn('Wadoku-Shard nicht verfügbar:',shard,e);
+     loadWadokuShardFor.lastError=e;
    }
  }
 
- setWadokuStatus('Deutsch · Wadoku konnte für diese Suche nicht geladen werden.');
+ const detail=loadWadokuShardFor.lastError?.message||'unbekannter Ladefehler';
+ setWadokuStatus('Deutsch · Wadoku-Ladefehler: '+detail);
  return null;
 }
 async function installBundledWadoku(showAlert=true){
  try{
    WADOKU_SHARD_CACHE.clear();
-   WADOKU_SHARD_CACHE.clear();
    const test=await loadWadokuShardFor('Länge',true);
-   if(!test)throw new Error('Wadoku-Testshard konnte nicht geladen werden.');
+   if(!test)throw new Error(loadWadokuShardFor.lastError?.message||'Wadoku-Testshard konnte nicht geladen werden.');
    if(showAlert)alert('Wadoku ist bereit. Weitere Buchstabenbereiche werden automatisch bei Bedarf geladen.');
    return true;
  }catch(e){
