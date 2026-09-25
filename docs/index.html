@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.6</title>
+<title>Kotodama SRS – Prototyp v8.7</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.6</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.7</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -1031,8 +1031,36 @@ function wadokuPosText(entry,sense){
 }
 function findWadokuJapanese(q){ return []; }
 
+function wadokuJmdictCommon(e){
+ if(!FULL_DICT||!e?.w)return false;
+ const arr=FULL_DICT[e.w]||[];
+ return arr.some(r=>r?.c && (!e.r||!r.r||r.r===e.r));
+}
+function wadokuUsagePenalty(s){
+ const txt=((s?.u||[]).join(' ')+' '+(s?.g||[]).join(' ')).toLowerCase();
+ let p=0;
+ if(/archit|fach|mediz|biol|chem|phys|jur|milit|musik|sport|botan|zool|techn|relig|hist|lingu|gramm|dom/.test(txt))p+=700;
+ if(/veralt|archais|selten|ungebr|dialekt|vulg|obs|rare/.test(txt))p+=900;
+ return p;
+}
+function wadokuOrthographyPenalty(e){
+ const w=e?.w||'';
+ let p=0;
+ if(/[×△▽]/.test(w))p+=1300;
+ if(/[()（）]/.test(w))p+=250;
+ if(/[・]/.test(w))p+=120;
+ return p;
+}
+
 async function findWadokuGerman(q){
  const nq=normalizeGermanLookup(q);if(!nq)return [];
+
+ // JMdict wird hier nur als direkter Häufigkeits-Tie-Breaker benutzt.
+ // Kein deutscher Reverse-Index wird gebaut.
+ if(!FULL_DICT){
+   try{await loadInstalledDictionary()}catch(e){console.warn(e)}
+ }
+
  const pack=await loadWadokuShardFor(nq);
  if(!pack)return [];
 
@@ -1083,8 +1111,18 @@ async function findWadokuGerman(q){
    const idx=exactIndex>=0?exactIndex:coreIndex;
    if(idx>=0)score+=Math.max(0,800-idx*160);
 
-   // HE markiert das eigentliche Hauptstichwort und soll bei gleich guten Bedeutungen gewinnen.
+   // HE markiert das eigentliche Hauptstichwort.
    if(e.he)score+=900;
+
+   // Bei semantisch gleich direkten Treffern bevorzugen wir tatsächlich häufige
+   // japanische Wörter. Dafür genügt ein direkter JMdict-Lookup auf das Stichwort.
+   const common=wadokuJmdictCommon(e);
+   if(common)score+=2600;
+
+   // Markierte/exotische Schreibweisen und stark fachsprachliche Senses gehören
+   // bei einer allgemeinen Lernwortsuche hinter neutrale Standardwörter.
+   score-=wadokuOrthographyPenalty(e);
+   score-=wadokuUsagePenalty(s);
 
    // Prägnante Senses vor sehr breiten Bedeutungslisten.
    score-=Math.max(0,glosses.length-1)*70;
@@ -1093,7 +1131,7 @@ async function findWadokuGerman(q){
    // aber niemals stärker als die eigentliche Bedeutungsqualität.
    score-=Math.max(0,jpLen-2)*18;
 
-   scored.push({e,s,si,score,exact,firstExact,onlyGloss,idx,jpLen});
+   scored.push({e,s,si,score,exact,firstExact,onlyGloss,idx,jpLen,common});
  }
 
  scored.sort((a,b)=>
@@ -1101,6 +1139,7 @@ async function findWadokuGerman(q){
    (b.exact?1:0)-(a.exact?1:0) ||
    (b.firstExact?1:0)-(a.firstExact?1:0) ||
    (b.onlyGloss?1:0)-(a.onlyGloss?1:0) ||
+   (b.common?1:0)-(a.common?1:0) ||
    a.idx-b.idx ||
    a.jpLen-b.jpLen ||
    a.e.w.localeCompare(b.e.w,'ja')
