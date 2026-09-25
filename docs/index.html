@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v9.0</title>
+<title>Kotodama SRS – Prototyp v9.1</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.0</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.1</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -397,7 +397,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <input id="germanLookupInput" style="flex:1;min-width:0" placeholder="z. B. Landschaft, besuchen, plötzlich …">
      <button class="btn small primary" id="germanLookupBtn">🇩🇪 → 🇯🇵 Vorschläge</button>
    </div>
-   <div class="note" style="margin:5px 0 9px">Deutsch → Japanisch nutzt jetzt ein echtes zweisprachiges Lernwörterbuch von <a href="https://freedict.org/" target="_blank" rel="noopener">FreeDict</a> (CC BY-SA 3.0). JMdict ergänzt Lesung und Commonness. Die alte rückwärtige Wadoku-Suche ist dafür deaktiviert.</div>
+   <div class="note" style="margin:5px 0 9px">Deutsch → Japanisch nutzt <a href="https://freedict.org/" target="_blank" rel="noopener">FreeDict</a> (CC BY-SA 3.0) für die Auswahl der passenden japanischen Wörter. JMdict ergänzt Lesung, Commonness und die deutschen Bedeutungsnuancen des jeweiligen japanischen Kandidaten.</div>
    <label>Japanischer Eintrag / Vorderseite</label>
    <textarea id="frontInput" placeholder="z. B. 訪れる"></textarea>
    <div id="duplicateBox" class="dup-warning hidden"></div>
@@ -994,6 +994,39 @@ function findFreeDictGerman(q){
  }
  return out.slice(0,14);
 }
+
+function jmdictMeaningsForCandidate(r){
+ if(!FULL_DICT||!r?.w)return [];
+ let arr=(FULL_DICT[r.w]||[]).slice();
+ if(r.r){
+   const exact=arr.filter(x=>!x.r||x.r===r.r);
+   if(exact.length)arr=exact;
+ }
+ arr.sort((a,b)=>(b.c?1:0)-(a.c?1:0));
+ const out=[],seen=new Set();
+ for(const rec of arr){
+   for(const g of rec.g||[]){
+     const t=(g||'').trim();
+     const n=normalizeGermanLookup(t);
+     if(!t||!n||seen.has(n))continue;
+     seen.add(n);out.push(t);
+     if(out.length>=6)return out;
+   }
+ }
+ return out;
+}
+function freeDictBackText(r,source){
+ const meanings=jmdictMeaningsForCandidate(r);
+ if(!meanings.length)return source;
+ const nq=normalizeGermanLookup(source);
+ const ordered=[...meanings].sort((a,b)=>{
+   const ae=normalizeGermanLookup(a)===nq?0:1;
+   const be=normalizeGermanLookup(b)===nq?0:1;
+   return ae-be;
+ });
+ return ordered.slice(0,5).join('\n');
+}
+
 function renderFreeDictGermanResults(results,source){
  const box=$('lookupResults');box.innerHTML='';box.classList.remove('hidden');
  if(!results.length){
@@ -1002,15 +1035,21 @@ function renderFreeDictGermanResults(results,source){
  for(const r of results){
    const d=document.createElement('div');d.className='lookup-item';
    const pos=(r.p||[]).join(' · ');
+   const meanings=jmdictMeaningsForCandidate(r);
+   const nuance=meanings.length
+     ?'<div class="lookup-gloss"><b>Bedeutungen:</b> '+safe(meanings.join(' · '))+'</div>'
+     :'<div class="lookup-gloss">Direkte Zuordnung zu „'+safe(source)+'“</div>';
    d.innerHTML='<div class="lookup-head"><span class="lookup-word">'+safe(r.w)+'</span><span class="lookup-reading">'+safe(r.r||'')+'</span></div>'+
-     '<div class="lookup-gloss">Direktübersetzung für „'+safe(source)+'“</div>'+
+     nuance+
      '<div class="lookup-pos">'+safe([pos,r.c?'häufig':''].filter(Boolean).join(' · '))+'</div>'+
      '<div class="row" style="margin-top:7px"><button class="btn small primary">Als Karte übernehmen</button></div>';
    d.querySelector('button').onclick=()=>{
      $('frontInput').value=r.w||'';
      $('readingInput').value=r.r||'';
-     $('backInput').value=source;
-     $('readingStatus').textContent='Direktübersetzung aus FreeDict übernommen; Lesung/Commonness aus JMdict ergänzt.';
+     $('backInput').value=freeDictBackText(r,source);
+     $('readingStatus').textContent=meanings.length
+       ?'FreeDict-Auswahl übernommen · Bedeutungsnuancen aus JMdict ergänzt.'
+       :'FreeDict-Auswahl übernommen.';
      $('readingStatus').style.color='#2f7a48';
      renderDuplicateWarning();updatePreview();box.classList.add('hidden');
    };
@@ -1455,6 +1494,12 @@ $('germanLookupBtn').onclick=async()=>{
    const ok=await ensureFreeDict();
    if(!ok)throw new Error('FreeDict konnte nicht geladen werden.');
    const res=findFreeDictGerman(q);
+   if(!FULL_DICT){
+     try{
+       await loadInstalledDictionary();
+       if(!FULL_DICT)await installBundledDictionary(false);
+     }catch(e){console.warn('JMdict-Nuancen konnten nicht geladen werden',e)}
+   }
    renderFreeDictGermanResults(res,q);
    $('readingStatus').textContent=res.length
      ?res.length+' direkte Deutsch→Japanisch-Vorschläge gefunden.'
