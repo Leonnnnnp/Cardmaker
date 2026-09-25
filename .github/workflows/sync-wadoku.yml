@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: sync-wadoku
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -73,6 +77,17 @@ jobs:
               if not key:return
               arr=idx.setdefault(key,[])
               if value not in arr:arr.append(value)
+
+          def add_de(key,value):
+              if not key:return
+              de.setdefault(key,[]).append(value)
+
+          stopwords={
+              "der","die","das","ein","eine","einen","einem","einer","eines",
+              "und","oder","aber","mit","von","zu","zum","zur","im","in","am","an",
+              "auf","aus","fur","bei","als","sich","sein","haben","werden","ist","sind",
+              "war","wie","dass","doch","nur","auch","noch","des","dem","den","einer"
+          }
 
           entries=[];jp={};de={}
 
@@ -147,12 +162,20 @@ jobs:
               for si,s in enumerate(rec["s"]):
                   for gloss in s["g"]:
                       ng=norm(gloss);cg=core(gloss)
-                      add(de,ng,[idx,si,3])
-                      if cg and cg!=ng:add(de,cg,[idx,si,2])
+                      add_de(ng,[idx,si,3])
+                      if cg and cg!=ng:add_de(cg,[idx,si,2])
                       for token in re.findall(r"[a-z0-9]{3,}",ng):
-                          if token not in (ng,cg):add(de,token,[idx,si,1])
+                          if token not in (ng,cg) and token not in stopwords:
+                              add_de(token,[idx,si,1])
 
               elem.clear()
+
+          # Deduplicate reverse references once at the end instead of doing
+          # O(n) membership checks for every token occurrence.
+          de={
+              key:[list(t) for t in sorted(set(map(tuple,vals)),key=lambda x:(-x[2],x[0],x[1]))]
+              for key,vals in de.items()
+          }
 
           pack={"meta":{"source":"Wadoku.de","sourceFile":source_file,"sourceUrl":"https://www.wadoku.de/","licenseUrl":"https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz","entries":len(entries),"format":"kotodama-wadoku-v1"},"entries":entries,"jp":jp,"de":de}
           with gzip.open(out_path,"wt",encoding="utf-8",compresslevel=9) as f:
