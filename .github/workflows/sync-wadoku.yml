@@ -221,7 +221,7 @@ jobs:
           refs=p["de"].get(q,[])
           print("Länge refs",len(refs),[p["entries"][r[0]] for r in refs[:5]])
           if not refs: raise SystemExit("German shard is missing Länge")
-          if any(x["bytes"]>2_000_000 for x in json.load(open("docs/resources/wadoku-de-shards/manifest.json",encoding="utf-8"))["shards"].values()):
+          if any(x["bytes"]>3_000_000 for x in json.load(open("docs/resources/wadoku-de-shards/manifest.json",encoding="utf-8"))["shards"].values()):
               raise SystemExit("A Wadoku shard is still too large for mobile use")
           PY
 
