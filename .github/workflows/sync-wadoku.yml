@@ -232,7 +232,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm -f docs/resources/wadoku-de-compact.json.gz
-          git add -A docs/resources/wadoku-de-shards docs/resources/wadoku-de-compact.json.gz
+          git add -A docs/resources
           if git diff --cached --quiet; then
             echo "Wadoku resource unchanged."
           else
