@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v7.2</title>
+<title>Kotodama SRS – Prototyp v7.3</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.2</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.3</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -391,6 +391,12 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <div class="modal" id="editorModal">
  <div class="paper modal-card">
    <h3 id="editorTitle" style="margin-top:0">Neue Karte</h3>
+   <label>Deutsch → Japanisch suchen</label>
+   <div class="row" style="align-items:stretch">
+     <input id="germanLookupInput" style="flex:1;min-width:0" placeholder="z. B. Landschaft, besuchen, plötzlich …">
+     <button class="btn small primary" id="germanLookupBtn">🇩🇪 → 🇯🇵 Vorschläge</button>
+   </div>
+   <div class="note" style="margin:5px 0 9px">Durchsucht dein lokal installiertes deutsches JMdict und übernimmt einen Treffer direkt in die Karte.</div>
    <label>Japanischer Eintrag / Vorderseite</label>
    <textarea id="frontInput" placeholder="z. B. 訪れる"></textarea>
    <div id="duplicateBox" class="dup-warning hidden"></div>
@@ -708,6 +714,7 @@ $('frontInput').addEventListener('input',()=>{
 $('copyFrontToExample').onclick=()=>{ if(!$('exampleInput').value.trim()) $('exampleInput').value=$('frontInput').value.trim(); updatePreview(); };
 
 function openEditor(card=null){
+ $('germanLookupInput').value='';
  editId=card?.id||null;
  $('editorTitle').textContent=card?'Karte bearbeiten':'Neue Karte';
  $('frontInput').value=card?.front||'';
@@ -831,6 +838,8 @@ const DICT_DB='kotodama_srs_dictionary_v1', DICT_STORE='data', DICT_KEY='compact
 const JMDICT_RELEASE='3.6.2+20260921173324';
 const JMDICT_URL='./resources/jmdict-ger-compact.json.gz';
 let FULL_DICT=null, DICT_META=null;
+let GERMAN_DICT_RECORDS=null;
+const GERMAN_LOOKUP_CACHE=new Map();
 
 function idbOpen(){
  return new Promise((resolve,reject)=>{
@@ -871,7 +880,7 @@ async function loadInstalledDictionary(){
  try{
    const pack=await idbGet(DICT_KEY);
    if(pack && pack.index){
-     FULL_DICT=pack.index; DICT_META=pack.meta||{};
+     FULL_DICT=pack.index; DICT_META=pack.meta||{}; GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear();
      setDictStatus(`JMdict installiert: ${DICT_META.entries||'?'} Einträge · Stand ${DICT_META.dictDate||'unbekannt'}`,true);
      return true;
    }
@@ -921,6 +930,73 @@ function findDict(q){
  if(a?.base && FULL_DICT[a.base]) return FULL_DICT[a.base].slice(0,8);
  return [];
 }
+
+function normalizeGermanLookup(s){
+ return (s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
+}
+function buildGermanDictRecords(){
+ if(GERMAN_DICT_RECORDS)return GERMAN_DICT_RECORDS;
+ const seen=new Set(),out=[];
+ for(const arr of Object.values(FULL_DICT||{})){
+   if(!Array.isArray(arr))continue;
+   for(const r of arr){
+     if(!r||!r.w||!Array.isArray(r.g)||!r.g.length)continue;
+     const key=(r.w||'')+'\u0001'+(r.r||'')+'\u0001'+r.g.join('\u0002');
+     if(seen.has(key))continue;
+     seen.add(key);
+     const ng=r.g.map(normalizeGermanLookup).filter(Boolean);
+     out.push({...r,_ng:ng});
+   }
+ }
+ GERMAN_DICT_RECORDS=out;
+ return out;
+}
+function findDictGerman(q){
+ const nq=normalizeGermanLookup(q);
+ if(!nq||!FULL_DICT)return [];
+ if(GERMAN_LOOKUP_CACHE.has(nq))return GERMAN_LOOKUP_CACHE.get(nq);
+ const recs=buildGermanDictRecords(),scored=[];
+ const words=nq.split(' ').filter(Boolean);
+ for(const r of recs){
+   let score=0;
+   for(const g of r._ng){
+     if(g===nq)score=Math.max(score,100);
+     else if(g.startsWith(nq+' ')||g.startsWith(nq+'-'))score=Math.max(score,82);
+     else if((' '+g+' ').includes(' '+nq+' '))score=Math.max(score,76);
+     else if(words.length>1 && words.every(w=>(' '+g+' ').includes(' '+w+' ')))score=Math.max(score,60);
+     else if(g.includes(nq))score=Math.max(score,45);
+   }
+   if(score)scored.push({r,score:score+(r.c?8:0)});
+ }
+ scored.sort((a,b)=>b.score-a.score || (b.r.c?1:0)-(a.r.c?1:0) || a.r.w.localeCompare(b.r.w,'ja'));
+ const res=scored.slice(0,12).map(x=>x.r);
+ GERMAN_LOOKUP_CACHE.set(nq,res);
+ if(GERMAN_LOOKUP_CACHE.size>30)GERMAN_LOOKUP_CACHE.delete(GERMAN_LOOKUP_CACHE.keys().next().value);
+ return res;
+}
+function renderGermanLookupResults(results,source){
+ const box=$('lookupResults');box.innerHTML='';box.classList.remove('hidden');
+ if(!results.length){
+   box.innerHTML='<div class="lookup-item"><div class="lookup-gloss">Keine passenden japanischen Vorschläge gefunden.</div></div>';return;
+ }
+ for(const r of results){
+   const d=document.createElement('div');d.className='lookup-item';
+   d.innerHTML='<div class="lookup-head"><span class="lookup-word">'+safe(r.w)+'</span><span class="lookup-reading">'+safe(r.r||'')+'</span></div>'+
+     '<div class="lookup-gloss">'+safe((r.g||[]).join(' · '))+'</div>'+
+     '<div class="lookup-pos">'+safe((r.p||[]).join(', '))+'</div>'+
+     '<div class="row" style="margin-top:7px"><button class="btn small primary">Als Karte übernehmen</button></div>';
+   d.querySelector('button').onclick=()=>{
+     $('frontInput').value=r.w||'';
+     $('readingInput').value=r.r||'';
+     $('backInput').value=(r.g||[]).slice(0,4).join('\n') || source;
+     $('readingStatus').textContent='Japanischer Vorschlag aus dem deutschen JMdict übernommen.';
+     $('readingStatus').style.color='#2f7a48';
+     renderDuplicateWarning();updatePreview();box.classList.add('hidden');
+   };
+   box.appendChild(d);
+ }
+}
+
 function renderLookupResults(results,source,compact=false){
  const box=$('lookupResults'); box.innerHTML=''; box.classList.remove('hidden');
  if(!results.length){
@@ -942,6 +1018,31 @@ function renderLookupResults(results,source,compact=false){
    box.appendChild(d);
  }
 }
+
+$('germanLookupBtn').onclick=async()=>{
+ const q=$('germanLookupInput').value.trim().split(/\n+/)[0];
+ if(!q){$('readingStatus').textContent='Bitte zuerst ein deutsches Wort eingeben.';return;}
+ if(!FULL_DICT)await loadInstalledDictionary();
+ if(!FULL_DICT){
+   $('readingStatus').textContent='Wörterbuch wird von GitHub geladen …';
+   $('readingStatus').style.color='#9a6b23';
+   const ok=await installBundledDictionary(false);
+   if(!ok||!FULL_DICT){
+     $('lookupResults').classList.remove('hidden');
+     $('lookupResults').innerHTML='<div class="lookup-item">Das Wörterbuch konnte nicht geladen werden. Tippe auf „Wörterbuch neu laden“ oder lade die Seite neu.</div>';
+     return;
+   }
+ }
+ $('readingStatus').textContent='Suche deutsche Bedeutung im JMdict …';
+ $('readingStatus').style.color='#9a6b23';
+ await new Promise(r=>setTimeout(r,20));
+ const res=findDictGerman(q);
+ renderGermanLookupResults(res,q);
+ $('readingStatus').textContent=res.length?res.length+' japanische Vorschläge gefunden.':'Keine passenden japanischen Vorschläge gefunden.';
+ $('readingStatus').style.color=res.length?'#2f7a48':'#9b3d32';
+};
+$('germanLookupInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('germanLookupBtn').click();}});
+
 $('dictLookupBtn').onclick=async()=>{
  const q=$('frontInput').value.trim().split(/\n+/)[0];
  if(!q){ $('readingStatus').textContent='Bitte zuerst ein japanisches Wort eingeben.';return; }
@@ -997,7 +1098,7 @@ async function installBundledDictionary(showAlert=true){
    setDictProgress(8,true);
    const pack=await fetchBundledJmdict();
    if(!pack || !pack.index) throw new Error('Ungültiges Wörterbuchformat.');
-   FULL_DICT=pack.index;
+   FULL_DICT=pack.index; GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear();
    DICT_META={
      ...(pack.meta||{}),
      source:'Kotodama GitHub Resource · JMdict '+JMDICT_RELEASE,
@@ -1021,7 +1122,7 @@ async function installDictionaryRoot(root,label){
  await new Promise(r=>setTimeout(r,30));
  const compact=compactJmdict(root);
  if(!compact.entries) throw new Error('Keine deutschen JMdict-Einträge erkannt.');
- FULL_DICT=compact.index;
+ FULL_DICT=compact.index; GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear();
  DICT_META={entries:compact.entries,total:compact.total,dictDate:root.dictDate||root.date||'',source:label,installedAt:new Date().toISOString()};
  setDictProgress(82,true); await idbSet(DICT_KEY,{index:FULL_DICT,meta:DICT_META});
  setDictProgress(100,true);
@@ -1041,7 +1142,7 @@ $('dictFile').addEventListener('change',async e=>{
 $('removeDictBtn').onclick=async()=>{
  if(!FULL_DICT && !(await idbGet(DICT_KEY))) return alert('Es ist kein vollständiges Wörterbuch installiert.');
  if(!confirm('Das installierte Wörterbuch aus diesem Browser entfernen? Deine Karten bleiben erhalten.')) return;
- await idbClear(); FULL_DICT=null; DICT_META=null; setDictStatus('Vollständiges Wörterbuch entfernt. Die eingebaute 1000-Wörter-Hilfe bleibt verfügbar.');
+ await idbClear(); FULL_DICT=null; DICT_META=null; GERMAN_DICT_RECORDS=null; GERMAN_LOOKUP_CACHE.clear(); setDictStatus('Vollständiges Wörterbuch entfernt. Die eingebaute 1000-Wörter-Hilfe bleibt verfügbar.');
 };
 loadInstalledDictionary();
 
@@ -1057,7 +1158,7 @@ function commitCard(andNext=false){
       state:'new',learningStep:0,stability:0.3,difficulty:5,history:[]});
  }
  save();
- if(andNext){ editId=null; $('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('frontInput').focus();}
+ if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('germanLookupInput').focus();}
  else closeEditor();
 }
 $('saveCard').onclick=()=>commitCard(false);
