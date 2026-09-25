@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.2</title>
+<title>Kotodama SRS – Prototyp v8.3</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.2</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.3</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -397,7 +397,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <input id="germanLookupInput" style="flex:1;min-width:0" placeholder="z. B. Landschaft, besuchen, plötzlich …">
      <button class="btn small primary" id="germanLookupBtn">🇩🇪 → 🇯🇵 Vorschläge</button>
    </div>
-   <div class="note" style="margin:5px 0 9px">Deutschdaten primär aus <a href="https://www.wadoku.de/" target="_blank" rel="noopener">Wadoku.de</a> · <a href="https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz" target="_blank" rel="noopener">Lizenz</a>. Bedeutungsblöcke und Wortarten bleiben getrennt; JMdict dient als Fallback.</div>
+   <div class="note" style="margin:5px 0 9px">Deutschdaten primär aus <a href="https://www.wadoku.de/" target="_blank" rel="noopener">Wadoku.de</a> · <a href="https://www.wadoku.de/wiki/display/WAD/Wadoku.de-Daten%2BLizenz" target="_blank" rel="noopener">Lizenz</a>. Bedeutungsblöcke und Wortarten bleiben getrennt; JMdict bleibt separat für Japanisch→Deutsch und die spätere englische Version erhalten.</div>
    <label>Japanischer Eintrag / Vorderseite</label>
    <textarea id="frontInput" placeholder="z. B. 訪れる"></textarea>
    <div id="duplicateBox" class="dup-warning hidden"></div>
@@ -903,41 +903,49 @@ function wadokuShardName(q){
  return raw.replace(/[^a-z0-9]/g,'_')||'_';
 }
 async function loadWadokuShardFor(q,force=false){
- const shard=wadokuShardName(q);
- if(!force&&WADOKU_SHARD_CACHE.has(shard))return WADOKU_SHARD_CACHE.get(shard);
- const key='wadokuShard:'+shard;
- if(!force){
+ const primary=wadokuShardName(q);
+ const legacy=(normalizeGermanLookup(q)[0]||'_').toLowerCase().replace(/[^a-z0-9]/g,'_');
+ const candidates=[primary,...(legacy&&legacy!==primary?[legacy]:[])];
+
+ for(const shard of candidates){
+   const key='wadokuShard:'+shard;
+   if(!force&&WADOKU_SHARD_CACHE.has(shard))return WADOKU_SHARD_CACHE.get(shard);
+
+   if(!force){
+     try{
+       const cached=await idbGet(key);
+       if(cached&&cached.entries&&cached.de){
+         WADOKU_SHARD_CACHE.set(shard,cached);
+         setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
+         return cached;
+       }
+     }catch(e){console.warn(e)}
+   }
+
    try{
-     const cached=await idbGet(key);
-     if(cached&&cached.entries&&cached.de){
-       WADOKU_SHARD_CACHE.set(shard,cached);
-       setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
-       return cached;
-     }
-   }catch(e){console.warn(e)}
+     setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' wird geladen …');
+     const pack=await fetchGzipJson(WADOKU_SHARD_BASE+encodeURIComponent(shard)+'.json.gz');
+     if(!pack||!Array.isArray(pack.entries)||!pack.de)throw new Error('Ungültiges Wadoku-Shard-Format.');
+     WADOKU_META=pack.meta||WADOKU_META||{};
+     WADOKU_SHARD_CACHE.set(shard,pack);
+     try{
+       await idbSet(key,pack);
+       await idbSet('wadokuManifestMeta',WADOKU_META||{});
+     }catch(e){console.warn('Wadoku-Cache konnte nicht gespeichert werden',e)}
+     setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
+     return pack;
+   }catch(e){
+     console.warn('Wadoku-Shard nicht verfügbar:',shard,e);
+   }
  }
- try{
-   setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' wird geladen …');
-   const pack=await fetchGzipJson(WADOKU_SHARD_BASE+encodeURIComponent(shard)+'.json.gz');
-   if(!pack||!Array.isArray(pack.entries)||!pack.de)throw new Error('Ungültiges Wadoku-Shard-Format.');
-   WADOKU_META=pack.meta||WADOKU_META||{};
-   WADOKU_SHARD_CACHE.set(shard,pack);
-   try{
-     await idbSet(key,pack);
-     await idbSet('wadokuManifestMeta',WADOKU_META||{});
-   }catch(e){console.warn('Wadoku-Cache konnte nicht gespeichert werden',e)}
-   setWadokuStatus('Deutsch · Wadoku: Teilwörterbuch '+shard.toUpperCase()+' lokal bereit.',true);
-   return pack;
- }catch(e){
-   console.error(e);
-   setWadokuStatus('Deutsch · Wadoku konnte für diese Suche nicht geladen werden; JMdict-Fallback wird verwendet.');
-   return null;
- }
+
+ setWadokuStatus('Deutsch · Wadoku konnte für diese Suche nicht geladen werden.');
+ return null;
 }
 async function installBundledWadoku(showAlert=true){
  try{
    WADOKU_SHARD_CACHE.clear();
-   try{await idbClear();}catch(e){console.warn(e)}
+   WADOKU_SHARD_CACHE.clear();
    const test=await loadWadokuShardFor('Länge',true);
    if(!test)throw new Error('Wadoku-Testshard konnte nicht geladen werden.');
    if(showAlert)alert('Wadoku ist bereit. Weitere Buchstabenbereiche werden automatisch bei Bedarf geladen.');
