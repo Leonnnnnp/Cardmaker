@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v8.5</title>
+<title>Kotodama SRS – Prototyp v8.6</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.5</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v8.6</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -1035,20 +1035,77 @@ async function findWadokuGerman(q){
  const nq=normalizeGermanLookup(q);if(!nq)return [];
  const pack=await loadWadokuShardFor(nq);
  if(!pack)return [];
+
  let refs=pack.de[nq]||[];
  if(!refs.length){
    const core=germanGlossCore(nq);
    if(core&&core!==nq)refs=pack.de[core]||[];
  }
+
  const scored=[],seen=new Set();
  for(const ref of refs){
    const [ei,si,quality]=ref,e=pack.entries?.[ei],s=e?.s?.[si];
    if(!e||!s)continue;
    const key=ei+':'+si;if(seen.has(key))continue;seen.add(key);
-   const shortest=Math.min(...(s.g||['']).map(x=>normalizeGermanLookup(x).length));
-   scored.push({e,s,si,score:(quality||0)*100+(e.he?8:0)-Math.min(25,shortest*.12)});
+
+   const glosses=(s.g||[]).map(g=>({
+     raw:g,
+     n:normalizeGermanLookup(g),
+     core:germanGlossCore(normalizeGermanLookup(g))
+   })).filter(x=>x.n);
+
+   let exactIndex=-1,coreIndex=-1;
+   for(let i=0;i<glosses.length;i++){
+     if(exactIndex<0&&glosses[i].n===nq)exactIndex=i;
+     if(coreIndex<0&&glosses[i].core===nq)coreIndex=i;
+   }
+
+   const exact=exactIndex>=0;
+   const coreExact=coreIndex>=0;
+   const firstExact=exactIndex===0||coreIndex===0;
+   const onlyGloss=glosses.length===1;
+   const directCount=glosses.filter(x=>x.n===nq||x.core===nq).length;
+   const jpLen=Array.from((e.w||'').replace(/[×△▽()（）s]/g,'')).length;
+
+   let score=0;
+
+   // Bedeutungstreue zuerst: ein direktes Gloss muss jeden bloßen Token-Treffer schlagen.
+   if(exact)score+=12000;
+   else if(coreExact)score+=11200;
+   else score+=(quality||0)*800;
+
+   // "Frage" → [Frage, ...] ist stärker als wenn "Frage" nur am Ende einer langen Liste steht.
+   if(firstExact)score+=2200;
+   if(onlyGloss&&(exact||coreExact))score+=1800;
+   if(directCount>0)score+=Math.min(600,directCount*150);
+
+   // Frühe Gloss-Positionen sind bei Wadoku meist die direkteren/zentraleren Übersetzungen.
+   const idx=exactIndex>=0?exactIndex:coreIndex;
+   if(idx>=0)score+=Math.max(0,800-idx*160);
+
+   // HE markiert das eigentliche Hauptstichwort und soll bei gleich guten Bedeutungen gewinnen.
+   if(e.he)score+=900;
+
+   // Prägnante Senses vor sehr breiten Bedeutungslisten.
+   score-=Math.max(0,glosses.length-1)*70;
+
+   // Nur ein kleiner Tie-Breaker: einfache, kurze Stichwörter wie 質問 / 長さ vor langen Komposita,
+   // aber niemals stärker als die eigentliche Bedeutungsqualität.
+   score-=Math.max(0,jpLen-2)*18;
+
+   scored.push({e,s,si,score,exact,firstExact,onlyGloss,idx,jpLen});
  }
- scored.sort((a,b)=>b.score-a.score || a.e.w.localeCompare(b.e.w,'ja'));
+
+ scored.sort((a,b)=>
+   b.score-a.score ||
+   (b.exact?1:0)-(a.exact?1:0) ||
+   (b.firstExact?1:0)-(a.firstExact?1:0) ||
+   (b.onlyGloss?1:0)-(a.onlyGloss?1:0) ||
+   a.idx-b.idx ||
+   a.jpLen-b.jpLen ||
+   a.e.w.localeCompare(b.e.w,'ja')
+ );
+
  return scored.slice(0,14);
 }
 function applyWadokuSense(e,s){
