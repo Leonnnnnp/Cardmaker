@@ -1,0 +1,192 @@
+name: Sync FreeDict German-Japanese learning dictionary
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-freedict-de-jp.yml"
+  schedule:
+    - cron: "43 5 7 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-freedict-de-jp
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download FreeDict and JMdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/freedict /tmp/jmdict docs/resources
+          FD_VERSION="2025.11.23"
+          FD_URL="https://download.freedict.org/dictionaries/deu-jpn/${FD_VERSION}/freedict-deu-jpn-${FD_VERSION}.src.tar.xz"
+          curl -fL "$FD_URL" -o /tmp/freedict/src.tar.xz
+          tar -xJf /tmp/freedict/src.tar.xz -C /tmp/freedict
+          find /tmp/freedict -maxdepth 3 -type f -print
+
+          RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest)"
+          JMDICT_URL="$(printf '%s' "$RELEASE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(a["browser_download_url"] for a in d["assets"] if a["name"].startswith("jmdict-ger-") and a["name"].endswith(".json.zip")))')"
+          curl -fL "$JMDICT_URL" -o /tmp/jmdict/jmdict.zip
+          unzip -p /tmp/jmdict/jmdict.zip '*.json' > /tmp/jmdict/jmdict-ger.json
+
+      - name: Build compact direct German to Japanese index
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,json,gzip,unicodedata
+          import xml.etree.ElementTree as ET
+
+          def local(tag):
+              return tag.rsplit("}",1)[-1] if "}" in tag else tag
+
+          def txt(el):
+              return re.sub(r"\s+"," ","".join(el.itertext())).strip() if el is not None else ""
+
+          def norm_de(s):
+              s=unicodedata.normalize("NFKD",s or "").lower()
+              s="".join(ch for ch in s if not unicodedata.combining(ch)).replace("ß","ss")
+              s=re.sub(r"[^a-z0-9]+"," ",s)
+              return re.sub(r"\s+"," ",s).strip()
+
+          jr={}
+          root=json.load(open("/tmp/jmdict/jmdict-ger.json",encoding="utf-8"))
+          words=root if isinstance(root,list) else root.get("words",[])
+          for w in words:
+              kanji=[x for x in w.get("kanji",[]) if x.get("text")]
+              kana=[x for x in w.get("kana",[]) if x.get("text")]
+              for k in kanji:
+                  readings=[x for x in kana if not x.get("appliesToKanji") or "*" in x.get("appliesToKanji",[]) or k["text"] in x.get("appliesToKanji",[])]
+                  if not readings: readings=kana
+                  readings=sorted(readings,key=lambda x:(not x.get("common"),x.get("text","")))
+                  reading=readings[0].get("text","") if readings else ""
+                  common=bool(k.get("common") or any(x.get("common") for x in readings))
+                  prev=jr.get(k["text"])
+                  if prev is None or (common and not prev["c"]):
+                      jr[k["text"]]={"r":reading,"c":common}
+              for ka in kana:
+                  prev=jr.get(ka["text"])
+                  rec={"r":ka["text"],"c":bool(ka.get("common"))}
+                  if prev is None or (rec["c"] and not prev["c"]):
+                      jr[ka["text"]]=rec
+
+          xmls=[]
+          for base,dirs,files in os.walk("/tmp/freedict"):
+              for fn in files:
+                  if fn.lower().endswith((".tei",".xml")):
+                      xmls.append(os.path.join(base,fn))
+          if not xmls:
+              raise SystemExit("No FreeDict TEI/XML source found")
+          xml_path=sorted(xmls,key=lambda p:(0 if "deu-jpn" in os.path.basename(p) else 1,len(p)))[0]
+          print("Parsing",xml_path)
+
+          root_xml=ET.parse(xml_path).getroot()
+
+          license_bits=[]
+          for el in root_xml.iter():
+              ln=local(el.tag)
+              if ln in ("licence","availability"):
+                  s=txt(el)
+                  target=el.attrib.get("target") or el.attrib.get("{http://www.w3.org/1999/xlink}href")
+                  if s: license_bits.append(s)
+                  if target: license_bits.append(target)
+          print("LICENSE", " | ".join(dict.fromkeys(license_bits))[:2000])
+
+          index={}
+          entries=0
+          for entry in [e for e in root_xml.iter() if local(e.tag)=="entry"]:
+              orths=[]
+              for child in entry:
+                  if local(child.tag)=="form":
+                      for n in child.iter():
+                          if local(n.tag)=="orth":
+                              s=txt(n)
+                              if s and s not in orths: orths.append(s)
+              if not orths: continue
+
+              pos=[]
+              for child in entry:
+                  if local(child.tag)=="gramGrp":
+                      for n in child.iter():
+                          if local(n.tag)=="pos":
+                              s=txt(n)
+                              if s and s not in pos: pos.append(s)
+
+              trans=[]
+              order=0
+              for sense in [x for x in entry if local(x.tag)=="sense"]:
+                  for cit in [x for x in sense if local(x.tag)=="cit" and x.attrib.get("type")=="trans"]:
+                      for q in [x for x in cit if local(x.tag)=="quote"]:
+                          jp=txt(q)
+                          if not jp: continue
+                          meta=jr.get(jp,{})
+                          rec={"w":jp,"r":meta.get("r",""),"c":bool(meta.get("c")),"p":pos[:4],"o":order}
+                          if not any(x["w"]==rec["w"] for x in trans):
+                              trans.append(rec)
+                              order+=1
+
+              if not trans: continue
+              for orth in orths:
+                  k=norm_de(orth)
+                  if not k: continue
+                  bucket=index.setdefault(k,[])
+                  for rec in trans:
+                      if not any(x["w"]==rec["w"] for x in bucket):
+                          bucket.append(rec)
+              entries+=1
+
+          for k,bucket in index.items():
+              bucket.sort(key=lambda x:(x.get("o",999),not x.get("c"),len(x.get("w","")),x.get("w","")))
+
+          pack={"meta":{"source":"FreeDict deu-jpn","version":"2025.11.23","sourceUrl":"https://freedict.org/","downloadUrl":"https://download.freedict.org/dictionaries/deu-jpn/2025.11.23/","format":"kotodama-freedict-de-jp-v1","entries":entries},"index":index}
+          out="docs/resources/freedict-de-jp.json.gz"
+          with gzip.open(out,"wt",encoding="utf-8",compresslevel=9) as f:
+              json.dump(pack,f,ensure_ascii=False,separators=(",",":"))
+          print("Built",out,os.path.getsize(out),"bytes",entries,"entries",len(index),"German keys")
+
+          for q in ("Frage","Länge","Problem","leben"):
+              print("TEST",q,index.get(norm_de(q),[])[:12])
+          PY
+
+      - name: Validate learner test cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip,json,unicodedata,re
+          p=json.load(gzip.open("docs/resources/freedict-de-jp.json.gz","rt",encoding="utf-8"))
+          def n(s):
+              s=unicodedata.normalize("NFKD",s).lower()
+              s="".join(c for c in s if not unicodedata.combining(c)).replace("ß","ss")
+              return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9]+"," ",s)).strip()
+          for q,target in [("Frage","質問"),("Länge","長さ")]:
+              got=p["index"].get(n(q),[])
+              print(q,got[:12])
+              pos=next((i for i,x in enumerate(got) if x["w"]==target),None)
+              if pos is None or pos>2:
+                  raise SystemExit(f"{target} is not in top 3 for {q}: {pos}")
+          PY
+
+      - name: Commit FreeDict resource
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/resources/freedict-de-jp.json.gz
+          if git diff --cached --quiet; then
+            echo "FreeDict resource unchanged."
+          else
+            git commit -m "Update FreeDict German-Japanese learning resource"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
