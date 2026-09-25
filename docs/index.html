@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v7.3</title>
+<title>Kotodama SRS – Prototyp v7.4</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.3</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v7.4</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -396,7 +396,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <input id="germanLookupInput" style="flex:1;min-width:0" placeholder="z. B. Landschaft, besuchen, plötzlich …">
      <button class="btn small primary" id="germanLookupBtn">🇩🇪 → 🇯🇵 Vorschläge</button>
    </div>
-   <div class="note" style="margin:5px 0 9px">Durchsucht dein lokal installiertes deutsches JMdict und übernimmt einen Treffer direkt in die Karte.</div>
+   <div class="note" style="margin:5px 0 9px">Durchsucht dein lokal installiertes deutsches JMdict. Direkte Bedeutungen und ganze Wörter werden vor bloßen Teiltreffern bevorzugt.</div>
    <label>Japanischer Eintrag / Vorderseite</label>
    <textarea id="frontInput" placeholder="z. B. 訪れる"></textarea>
    <div id="duplicateBox" class="dup-warning hidden"></div>
@@ -951,6 +951,9 @@ function buildGermanDictRecords(){
  GERMAN_DICT_RECORDS=out;
  return out;
 }
+function germanGlossCore(g){
+ return (g||'').replace(/^(der|die|das|ein|eine|einen|einem|einer|eines)\s+/,'').trim();
+}
 function findDictGerman(q){
  const nq=normalizeGermanLookup(q);
  if(!nq||!FULL_DICT)return [];
@@ -958,21 +961,58 @@ function findDictGerman(q){
  const recs=buildGermanDictRecords(),scored=[];
  const words=nq.split(' ').filter(Boolean);
  for(const r of recs){
-   let score=0;
-   for(const g of r._ng){
-     if(g===nq)score=Math.max(score,100);
-     else if(g.startsWith(nq+' ')||g.startsWith(nq+'-'))score=Math.max(score,82);
-     else if((' '+g+' ').includes(' '+nq+' '))score=Math.max(score,76);
-     else if(words.length>1 && words.every(w=>(' '+g+' ').includes(' '+w+' ')))score=Math.max(score,60);
-     else if(g.includes(nq))score=Math.max(score,45);
+   let best=0,bestLen=9999;
+   for(const gRaw of r._ng){
+     const g=gRaw, core=germanGlossCore(g);
+     let score=0;
+
+     // 1) Direkte Wörterbuchbedeutungen dominieren klar.
+     if(g===nq) score=150;
+     else if(core===nq) score=142;
+
+     // 2) Exakte Wort-/Phrasentreffer, aber nicht innerhalb anderer Wörter.
+     else if(g.startsWith(nq+' ')||g.startsWith(nq+'-')) score=112;
+     else if((' '+g+' ').includes(' '+nq+' ')) score=104;
+     else if(core.startsWith(nq+' ')||core.startsWith(nq+'-')) score=100;
+
+     // 3) Mehrwortsuche: alle Suchwörter müssen als ganze Wörter vorkommen.
+     else if(words.length>1 && words.every(w=>(' '+g+' ').includes(' '+w+' '))) score=84;
+
+     // 4) Unscharfe Teiltreffer nur noch als schwacher Fallback.
+     //    "leben" in "erleben/überleben" darf direkte "leben"-Treffer nie verdrängen.
+     else if(nq.length>=5){
+       const tokens=g.split(' ');
+       if(tokens.some(t=>t.startsWith(nq))) score=34;
+       else if(nq.length>=7 && g.includes(nq)) score=18;
+     }
+
+     if(score){
+       // Kurze, präzise Glosses sind für die Rückwärtssuche hilfreicher.
+       const lenPenalty=Math.min(16,Math.max(0,g.length-nq.length)*0.22);
+       score-=lenPenalty;
+       if(score>best){best=score;bestLen=g.length}
+     }
    }
-   if(score)scored.push({r,score:score+(r.c?8:0)});
+   if(best){
+     // Häufigkeit ist nur ein Tie-Breaker, nie wichtiger als ein besserer Bedeutungs-Match.
+     const commonBonus=r.c?5:0;
+     const conciseBonus=bestLen<=Math.max(14,nq.length+6)?3:0;
+     scored.push({r,score:best+commonBonus+conciseBonus,bestLen});
+   }
  }
- scored.sort((a,b)=>b.score-a.score || (b.r.c?1:0)-(a.r.c?1:0) || a.r.w.localeCompare(b.r.w,'ja'));
- const res=scored.slice(0,12).map(x=>x.r);
- GERMAN_LOOKUP_CACHE.set(nq,res);
+ scored.sort((a,b)=>b.score-a.score || a.bestLen-b.bestLen || (b.r.c?1:0)-(a.r.c?1:0) || a.r.w.localeCompare(b.r.w,'ja'));
+
+ // Doppelte Schreibweise+Lesung vermeiden, damit die Top-Liste vielfältiger wird.
+ const out=[],seen=new Set();
+ for(const x of scored){
+   const key=(x.r.w||'')+'\u0001'+(x.r.r||'');
+   if(seen.has(key))continue;
+   seen.add(key);out.push(x.r);
+   if(out.length>=12)break;
+ }
+ GERMAN_LOOKUP_CACHE.set(nq,out);
  if(GERMAN_LOOKUP_CACHE.size>30)GERMAN_LOOKUP_CACHE.delete(GERMAN_LOOKUP_CACHE.keys().next().value);
- return res;
+ return out;
 }
 function renderGermanLookupResults(results,source){
  const box=$('lookupResults');box.innerHTML='';box.classList.remove('hidden');
