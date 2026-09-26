@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v9.1</title>
+<title>Kotodama SRS – Prototyp v9.2</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.2</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -506,6 +506,13 @@ function mergeSaveData(localData,cloudData){
    }
  };
 }
+function rebindActiveCardRefs(){
+ const byId=new Map((db.cards||[]).filter(c=>c?.id).map(c=>[c.id,c]));
+ if(current?.id) current=byId.get(current.id)||current;
+ if(Array.isArray(reviewQueue)){
+   reviewQueue=reviewQueue.map(c=>c?.id?(byId.get(c.id)||c):c);
+ }
+}
 function queueCloudSync(){
  if(!cloudUser || !cloudClient || cloudBusy) return;
  clearTimeout(cloudSaveTimer);
@@ -538,6 +545,10 @@ async function syncCloudSave(showSuccess=true){
      const merged=mergeSaveData(db,data.save_data);
      db=merged;
      migrateV5();
+     // Cloud-Merge erzeugt neue Kartenobjekte. Eine laufende Review-Runde muss
+     // danach auf genau diese gespeicherten Objekte zeigen, sonst würden
+     // Bewertungen nur veraltete Kopien in reviewQueue/current verändern.
+     rebindActiveCardRefs();
      localStorage.setItem(STORE,JSON.stringify(db));
      refresh();
    }
@@ -2258,6 +2269,8 @@ function schedule(card,rating){
 }
 document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
  if(!current)return;
+ const liveCurrent=current?.id?db.cards.find(c=>c.id===current.id):null;
+ if(liveCurrent) current=liveCurrent;
  const r=b.dataset.rate;
  if(reviewMode==='srs') schedule(current,r);
  else {
