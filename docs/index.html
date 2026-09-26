@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v9.2</title>
+<title>Kotodama SRS – Prototyp v9.3</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.2</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.3</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -230,6 +230,8 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
        <label class="train-check"><input type="checkbox" class="train-status" value="relearning" checked> Wiederlernen</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="mature"> Reif</label>
      </div>
+     <label class="train-check" style="margin-top:8px"><input type="checkbox" id="showReadingByDefault" checked> Lesung auf Japanisch → Deutsch automatisch anzeigen</label>
+     <div class="note" style="margin-top:4px">Ausgeschaltet: Kanji zuerst ohne Hilfe lesen; mit „Lesung“ kannst du sie pro Karte einblenden.</div>
      <div class="row" style="margin:8px 0">
        <span class="note">Abfragerichtung:</span>
        <select id="trainingDirection">
@@ -367,6 +369,9 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="review-progress" id="reviewProgress"></div>
    <div class="paper reviewcard">
       <div class="reviewfront" id="reviewFront"></div>
+      <div class="row hidden" id="reviewReadingRow" style="justify-content:center;margin:6px 0">
+        <button class="btn small ghost" id="showReadingBtn">Lesung</button>
+      </div>
       <div class="review-meta" id="reviewMeta"></div>
       <button class="btn primary" id="showAnswer">Antwort zeigen</button>
       <div id="answerArea" class="hidden">
@@ -480,6 +485,7 @@ function setCloudStatus(text,kind=''){
 function normalizeSaveData(x){
  if(!x || !Array.isArray(x.cards)) return {cards:[]};
  if(!x.meta || typeof x.meta!=='object') x.meta={};
+ if(typeof x.meta.showReadingByDefault!=='boolean') x.meta.showReadingByDefault=true;
  return x;
 }
 function cardChangedAt(card){
@@ -679,6 +685,7 @@ function dueCards(){
 }
 function refresh(){
  migrateV5();
+ syncReadingPreferenceUI();
  const due=dueCards();
  $('dueCount').textContent=due.length;
  $('newCount').textContent=db.cards.filter(c=>cardStatus(c)==='new').length;
@@ -700,6 +707,13 @@ function showScreen(id){
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
 
 function safe(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function showReadingByDefault(){
+ return db.meta?.showReadingByDefault!==false;
+}
+function syncReadingPreferenceUI(){
+ const cb=$('showReadingByDefault');
+ if(cb) cb.checked=showReadingByDefault();
+}
 function renderFront(front,reading){
  const f=(front||'').trim(), r=(reading||'').trim();
  if(r && f && !f.includes('\n') && /[\u3400-\u9fff]/.test(f)){
@@ -2175,9 +2189,16 @@ function chooseReviewDirection(card){
 function renderReviewCard(card){
  currentDirection=chooseReviewDirection(card);
  const dirLabel=currentDirection==='jp-de'?'日本語 → Deutsch':'Deutsch → 日本語';
+ const readingRow=$('reviewReadingRow'), readingBtn=$('showReadingBtn');
+ if(readingRow) readingRow.classList.add('hidden');
  if(currentDirection==='jp-de'){
-   $('reviewFront').innerHTML=renderFront(card.front,card.reading);
+   const autoReading=showReadingByDefault();
+   $('reviewFront').innerHTML=renderFront(card.front,autoReading?card.reading:'');
    $('reviewBack').innerHTML=safe(card.back).replace(/\n/g,'<br>');
+   if(!autoReading && card.reading && readingRow){
+     readingRow.classList.remove('hidden');
+     if(readingBtn) readingBtn.textContent='Lesung';
+   }
  }else{
    $('reviewFront').innerHTML=safe(card.back).replace(/\n/g,'<br>');
    const reading=card.reading?'<div class="note" style="margin-top:6px">'+safe(card.reading)+'</div>':'';
@@ -2204,6 +2225,16 @@ function nextCard(){
  $('answerArea').classList.add('hidden');$('showAnswer').classList.remove('hidden');
 }
 $('showAnswer').onclick=()=>{$('showAnswer').classList.add('hidden');$('answerArea').classList.remove('hidden')};
+$('showReadingBtn').onclick=()=>{
+ if(!current || currentDirection!=='jp-de')return;
+ $('reviewFront').innerHTML=renderFront(current.front,current.reading);
+ $('reviewReadingRow').classList.add('hidden');
+};
+$('showReadingByDefault').onchange=e=>{
+ db=normalizeSaveData(db);
+ db.meta.showReadingByDefault=!!e.target.checked;
+ save();
+};
 
 function schedule(card,rating){
  ensureCardV5(card);
