@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v9.3</title>
+<title>Kotodama SRS – Prototyp v9.4</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -181,7 +181,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.3</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.4</div></div>
    <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
  </div>
 
@@ -217,6 +217,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <div class="note" id="homeText">Füge zuerst eine Karte hinzu.</div>
      <div class="row" style="margin-top:12px">
        <button class="btn primary" id="startReview">Review starten</button>
+       <button class="btn" id="gameSettingsBtn">⚙️ Spieleinstellungen</button>
      </div>
    </div>
 
@@ -230,8 +231,6 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
        <label class="train-check"><input type="checkbox" class="train-status" value="relearning" checked> Wiederlernen</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="mature"> Reif</label>
      </div>
-     <label class="train-check" style="margin-top:8px"><input type="checkbox" id="showReadingByDefault" checked> Lesung auf Japanisch → Deutsch automatisch anzeigen</label>
-     <div class="note" style="margin-top:4px">Ausgeschaltet: Kanji zuerst ohne Hilfe lesen; mit „Lesung“ kannst du sie pro Karte einblenden.</div>
      <div class="row" style="margin:8px 0">
        <span class="note">Abfragerichtung:</span>
        <select id="trainingDirection">
@@ -439,6 +438,22 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
  </div>
 </div>
 
+<div class="modal" id="gameSettingsModal">
+ <div class="paper modal-card">
+   <h3 style="margin-top:0">⚙️ Spieleinstellungen</h3>
+   <div class="note" style="margin-bottom:12px">Globale Einstellungen für Reviews, Training und Abenteuer.</div>
+   <label class="train-check"><input type="checkbox" id="showReadingByDefault" checked> Lesung bei Japanisch → Deutsch automatisch anzeigen</label>
+   <div class="note" style="margin:4px 0 14px">Ausgeschaltet: Kanji zunächst ohne Hilfe lesen; „Lesung“ blendet sie pro Karte ein.</div>
+   <label class="train-check"><input type="checkbox" id="soundEnabled" checked> Sound allgemein</label>
+   <label class="train-check" style="margin-top:8px"><input type="checkbox" id="correctSoundEnabled" checked> Sound bei richtiger Antwort</label>
+   <label class="train-check" style="margin-top:8px"><input type="checkbox" id="wrongSoundEnabled" checked> Sound bei falscher Antwort</label>
+   <div class="note" style="margin-top:8px">Die Antwortsounds können unabhängig voneinander deaktiviert werden. „Sound allgemein“ schaltet sämtliche Spielsounds stumm.</div>
+   <div class="row" style="margin-top:16px">
+     <button class="btn primary" id="gameSettingsClose">Fertig</button>
+   </div>
+ </div>
+</div>
+
 <div class="modal" id="cloudModal">
  <div class="paper modal-card">
    <h3 style="margin-top:0">☁ Kotodama Cloud</h3>
@@ -486,6 +501,9 @@ function normalizeSaveData(x){
  if(!x || !Array.isArray(x.cards)) return {cards:[]};
  if(!x.meta || typeof x.meta!=='object') x.meta={};
  if(typeof x.meta.showReadingByDefault!=='boolean') x.meta.showReadingByDefault=true;
+ if(typeof x.meta.soundEnabled!=='boolean') x.meta.soundEnabled=true;
+ if(typeof x.meta.correctSoundEnabled!=='boolean') x.meta.correctSoundEnabled=true;
+ if(typeof x.meta.wrongSoundEnabled!=='boolean') x.meta.wrongSoundEnabled=true;
  return x;
 }
 function cardChangedAt(card){
@@ -711,8 +729,11 @@ function showReadingByDefault(){
  return db.meta?.showReadingByDefault!==false;
 }
 function syncReadingPreferenceUI(){
- const cb=$('showReadingByDefault');
- if(cb) cb.checked=showReadingByDefault();
+ const reading=$('showReadingByDefault'), sound=$('soundEnabled'), correct=$('correctSoundEnabled'), wrong=$('wrongSoundEnabled');
+ if(reading) reading.checked=showReadingByDefault();
+ if(sound) sound.checked=db.meta?.soundEnabled!==false;
+ if(correct) correct.checked=db.meta?.correctSoundEnabled!==false;
+ if(wrong) wrong.checked=db.meta?.wrongSoundEnabled!==false;
 }
 function renderFront(front,reading){
  const f=(front||'').trim(), r=(reading||'').trim();
@@ -1809,10 +1830,11 @@ const AdvAudio=(()=>{
  let ctx=null, muted=false, musicTimer=null, musicOn=false;
  const get=()=>{if(!ctx){try{ctx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}return ctx};
  function unlock(){const c=get();if(c&&c.state==='suspended')c.resume()}
- function tone(freq,start,dur,type='square',vol=.09){if(muted)return;const c=get();if(!c)return;const t=c.currentTime+start,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
- function slide(a,b,dur,type='sawtooth',vol=.12){if(muted)return;const c=get();if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(a,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,b),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
- function correct(){tone(523,0,.08);tone(784,.07,.14)}
- function wrong(){tone(196,0,.10,'sawtooth',.11);tone(147,.09,.16,'sawtooth',.10)}
+ function soundAllowed(){return !muted && db.meta?.soundEnabled!==false}
+ function tone(freq,start,dur,type='square',vol=.09){if(!soundAllowed())return;const c=get();if(!c)return;const t=c.currentTime+start,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
+ function slide(a,b,dur,type='sawtooth',vol=.12){if(!soundAllowed())return;const c=get();if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(a,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,b),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.04)}
+ function correct(){if(db.meta?.correctSoundEnabled===false)return;tone(523,0,.07,'square',.08);tone(659,.055,.08,'square',.08);tone(880,.115,.16,'triangle',.09)}
+ function wrong(){if(db.meta?.wrongSoundEnabled===false)return;tone(220,0,.11,'sawtooth',.09);tone(165,.085,.13,'sawtooth',.10);tone(110,.18,.20,'square',.08)}
  function hit(){tone(110,0,.12,'square',.13);tone(78,.05,.15,'square',.09)}
  function enemy(){slide(260,90,.22,'sawtooth',.10)}
  function heal(){[523,659,784,1046].forEach((f,i)=>tone(f,i*.06,.14,'triangle',.08))}
@@ -1825,7 +1847,7 @@ const AdvAudio=(()=>{
    else {setTimeout(()=>{slide(140,42,.42,'sawtooth',.18);tone(60,0,.35,'square',.09);hit()},130)}
  }
  function startMusic(){
-   unlock();stopMusic();musicOn=true;let step=0;
+   unlock();stopMusic();if(db.meta?.soundEnabled===false)return;musicOn=true;let step=0;
    const bass=[110,110,147,110,131,131,165,147],lead=[440,0,523,440,0,466,440,392];
    const tick=()=>{if(!musicOn)return;const i=step++%bass.length;if(bass[i])tone(bass[i],0,.13,'square',.025);if(lead[i])tone(lead[i],.02,.10,'triangle',.018);musicTimer=setTimeout(tick,170)};
    tick();
@@ -2230,11 +2252,18 @@ $('showReadingBtn').onclick=()=>{
  $('reviewFront').innerHTML=renderFront(current.front,current.reading);
  $('reviewReadingRow').classList.add('hidden');
 };
-$('showReadingByDefault').onchange=e=>{
- db=normalizeSaveData(db);
- db.meta.showReadingByDefault=!!e.target.checked;
+function saveGameSetting(key,value){
+ db=normalizeSaveData(db);db.meta[key]=!!value;
+ if(key==='soundEnabled' && !value) AdvAudio.stopMusic();
  save();
-};
+}
+$('gameSettingsBtn').onclick=()=>{syncReadingPreferenceUI();$('gameSettingsModal').classList.add('show')};
+$('gameSettingsClose').onclick=()=>$('gameSettingsModal').classList.remove('show');
+$('showReadingByDefault').onchange=e=>saveGameSetting('showReadingByDefault',e.target.checked);
+$('soundEnabled').onchange=e=>saveGameSetting('soundEnabled',e.target.checked);
+$('correctSoundEnabled').onchange=e=>{saveGameSetting('correctSoundEnabled',e.target.checked);if(e.target.checked&&db.meta.soundEnabled!==false){AdvAudio.unlock();AdvAudio.correct()}};
+$('wrongSoundEnabled').onchange=e=>{saveGameSetting('wrongSoundEnabled',e.target.checked);if(e.target.checked&&db.meta.soundEnabled!==false){AdvAudio.unlock();AdvAudio.wrong()}};
+
 
 function schedule(card,rating){
  ensureCardV5(card);
@@ -2303,6 +2332,8 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
  const liveCurrent=current?.id?db.cards.find(c=>c.id===current.id):null;
  if(liveCurrent) current=liveCurrent;
  const r=b.dataset.rate;
+ if(r==='again') AdvAudio.wrong();
+ else if(r==='good'||r==='easy') AdvAudio.correct();
  if(reviewMode==='srs') schedule(current,r);
  else {
    // Freies Training protokolliert separat, verändert aber keine SRS-Fälligkeit.
