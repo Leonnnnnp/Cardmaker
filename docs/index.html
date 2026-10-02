@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v10.1</title>
+<title>Kotodama SRS – Prototyp v11.0</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -174,6 +174,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 @keyframes advImpact{0%{opacity:0;transform:scale(.2)}30%{opacity:1;transform:scale(1.15)}100%{opacity:0;transform:scale(1.5)}}
 
 
+.set-grid{display:grid;gap:12px;margin-top:12px}.set-card{padding:14px}.set-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.set-progress{height:9px;background:rgba(255,255,255,.09);border-radius:999px;overflow:hidden;margin:10px 0 5px}.set-progress>div{height:100%;background:linear-gradient(90deg,var(--amber),var(--teal));border-radius:999px}.set-chip{font-size:.72rem;padding:3px 7px;border:1px solid rgba(255,255,255,.16);border-radius:999px;opacity:.82}.set-select{min-width:170px}
 .main-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
 .menu-card{min-height:96px;text-align:left;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:4px;padding:16px}
 .menu-card strong{font-size:1.08rem}.menu-card span{font-size:.82rem;opacity:.76;font-weight:500}
@@ -188,7 +189,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v10.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v11.0</div></div>
    <div class="header-cloud">
      <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
      <div id="cloudEmail" class="cloud-email"></div>
@@ -219,6 +220,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <button class="btn menu-card primary" data-screen="reviewMenu"><strong>⚔️ Review</strong><span>Heutige Expedition und fällige Karten</span></button>
      <button class="btn menu-card" data-screen="trainingMenu"><strong>🎯 Freies Training</strong><span>Unabhängig von der SRS-Fälligkeit üben</span></button>
      <button class="btn menu-card" data-screen="adventureMenu"><strong>🗺️ Abenteuer</strong><span>Vokabelkampf mit Texteingabe und Bossen</span></button>
+     <button class="btn menu-card" data-screen="sets"><strong>📚 Sets</strong><span>Meine Karten und kuratierte Wortfelder</span></button>
      <button class="btn menu-card" id="gameSettingsBtn"><strong>⚙️ Spieleinstellungen</strong><span>Lesung, Sound, Daten und Wörterbücher</span></button>
    </div>
  </section>
@@ -227,6 +229,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
    <div class="panel">
      <div class="section-title">Heutige Expedition</div>
+     <div class="row" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>
      <div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
      <div class="note" id="reviewNextDue" style="margin-top:5px"></div>
      <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
@@ -241,6 +244,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>🎯 Freies Training</h2></div>
    <div class="panel train-panel">
      <div class="note">Jederzeit üben – unabhängig von der SRS-Fälligkeit. Freies Training verändert deine nächsten Fälligkeitstermine nicht.</div>
+     <div class="row" style="margin-top:10px"><span class="note">Set:</span><select id="trainingSetFilter" class="set-select"></select></div>
      <div class="train-checks" style="margin-top:10px">
        <label class="train-check"><input type="checkbox" class="train-status" value="new" checked> Neu</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="learning" checked> Lernend</label>
@@ -260,11 +264,18 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="panel adventure-panel">
      <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Er nutzt deine Karten, verändert aber niemals das SRS.</div>
      <div class="row" style="margin-top:12px">
+       <select id="adventureSetFilter" class="set-select"></select>
        <select id="adventureDirection"><option value="mixed">Gemischt</option><option value="jp-de">Japanisch → Deutsch</option><option value="de-jp">Deutsch → Japanisch (Romaji)</option></select>
        <button class="btn primary" id="startAdventure">Abenteuer starten</button>
      </div>
      <div class="note" id="adventureHomeStats" style="margin-top:9px"></div>
    </div>
+ </section>
+
+ <section id="sets" class="screen">
+   <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>📚 Sets</h2></div>
+   <div class="note">Sets ordnen deinen Lernstoff. „Meine Karten“ enthält deine selbst erstellten Karten und kann beliebig wachsen. Kuratierte Sets werden später schrittweise eingeführt.</div>
+   <div class="set-grid" id="setLibrary"></div>
  </section>
 
  <section id="cards" class="screen">
@@ -276,6 +287,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    </div>
    <div class="filterbar">
      <input class="search" id="search" placeholder="Karten durchsuchen …">
+     <select id="cardSetFilter" class="set-select"></select>
      <select id="statusFilter">
        <option value="all">Alle Status</option>
        <option value="new">Neu</option>
@@ -507,6 +519,7 @@ function normalizeSaveData(x){
  if(typeof x.meta.soundEnabled!=='boolean') x.meta.soundEnabled=true;
  if(typeof x.meta.correctSoundEnabled!=='boolean') x.meta.correctSoundEnabled=true;
  if(typeof x.meta.wrongSoundEnabled!=='boolean') x.meta.wrongSoundEnabled=true;
+ if(!x.meta.sets || typeof x.meta.sets!=='object') x.meta.sets={};
  return x;
 }
 function cardChangedAt(card){
@@ -633,7 +646,46 @@ let heroTimer=null;
 
 
 const V5_DAY=86400000, V5_MIN=60000;
+const USER_SET_ID='my-cards';
+const CURATED_SETS=[
+ // Kuratierte Inhalte werden ab v11.1 gemeinsam ergänzt.
+];
+function ensureCardSets(c){
+ if(!Array.isArray(c.setIds)||!c.setIds.length)c.setIds=[USER_SET_ID];
+ if(!c.source)c.source='user';
+ return c;
+}
+function setDefinitions(){
+ return [{id:USER_SET_ID,name:'Meine Karten',description:'Deine selbst erstellten und beliebig erweiterbaren Karten.',kind:'user'},...CURATED_SETS];
+}
+function cardsForSet(setId,cards=db.cards){
+ if(!setId||setId==='all')return cards;
+ return cards.filter(c=>ensureCardSets(c).setIds.includes(setId));
+}
+function setSafetyScore(cards){
+ if(!cards.length)return 0;
+ return Math.round(cards.reduce((sum,c)=>sum+({new:10,relearning:25,learning:55,mature:100}[cardStatus(c)]||0),0)/cards.length);
+}
+function renderSetSelectors(){
+ const defs=setDefinitions(), options=['<option value="all">Alle Karten</option>',...defs.map(s=>`<option value="${s.id}">${safe(s.name)}</option>`)].join('');
+ for(const id of ['reviewSetFilter','trainingSetFilter','adventureSetFilter','cardSetFilter']){
+   const el=$(id);if(!el)continue;const old=el.value;el.innerHTML=options;if([...el.options].some(o=>o.value===old))el.value=old;
+ }
+}
+function renderSetLibrary(){
+ const box=$('setLibrary');if(!box)return;const defs=setDefinitions();
+ box.innerHTML=defs.map(s=>{
+   const active=cardsForSet(s.id), total=s.kind==='curated'?(s.cards?.length||0):active.length;
+   const introduced=s.kind==='curated'?active.filter(c=>c.curatedSetId===s.id).length:active.length;
+   const pct=total?Math.round(introduced/total*100):0, safety=setSafetyScore(active);
+   return `<div class="panel set-card"><div class="set-card-head"><div><div class="section-title">${safe(s.name)}</div><div class="note">${safe(s.description||'')}</div></div><span class="set-chip">${s.kind==='user'?'USER-SET':'KURATIERT'}</span></div>
+   <div class="set-progress"><div style="width:${pct}%"></div></div>
+   <div class="note">${s.kind==='user'?`${active.length} Karten · Sicherheit Ø ${safety}%`:`${introduced} / ${total} eingeführt · Sicherheit Ø ${safety}%`}</div>
+   ${s.kind==='curated'?'<div class="note" style="margin-top:8px">Schrittweise Einführung: +5 / +10 / eigene Anzahl folgt mit dem ersten kuratierten Set.</div>':''}</div>`;
+ }).join('');
+}
 function ensureCardV5(c){
+  ensureCardSets(c);
   if(!c.history) c.history=[];
   if(!c.state){
     if(!c.reps) c.state='new';
@@ -740,6 +792,8 @@ function refresh(){
    ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
    : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
  refreshReviewExpedition(due);
+ renderSetSelectors();
+ renderSetLibrary();
  renderList();
 }
 function showScreen(id){
@@ -749,6 +803,8 @@ function showScreen(id){
  $('addFab').classList.toggle('hidden',id==='review'||id==='adventure');
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
+$('reviewSetFilter').addEventListener('change',()=>refreshReviewExpedition(cardsForSet($('reviewSetFilter').value,dueCards())));
+
 
 function safe(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function showReadingByDefault(){
@@ -1694,7 +1750,7 @@ function commitCard(andNext=false){
  }else{
    db.cards.push({id:uid(),front,reading:$('readingInput').value.trim(),back,example:$('exampleInput').value.trim(),
       createdAt:now(),updatedAt:now(),due:now(),reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,
-      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[]});
+      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds:[USER_SET_ID]});
  }
  save();
  if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('germanLookupInput').focus();}
@@ -1706,8 +1762,8 @@ $('saveNext').onclick=()=>commitCard(true);
 function renderList(){
  const box=$('wordlist'); if(!box)return;
  const q=($('search')?.value||'').toLowerCase();
- const sf=$('statusFilter')?.value||'all', sort=$('sortFilter')?.value||'due';
- let cards=[...db.cards].map(ensureCardV5).filter(c=>(c.front+'\n'+c.reading+'\n'+c.back+'\n'+c.example).toLowerCase().includes(q));
+ const sf=$('statusFilter')?.value||'all', sort=$('sortFilter')?.value||'due', setId=$('cardSetFilter')?.value||'all';
+ let cards=cardsForSet(setId,[...db.cards]).map(ensureCardV5).filter(c=>(c.front+'\n'+c.reading+'\n'+c.back+'\n'+c.example).toLowerCase().includes(q));
  if(sf!=='all'){
    if(sf==='due') cards=cards.filter(c=>(c.due||0)<=now());
    else cards=cards.filter(c=>cardStatus(c)===sf);
@@ -1732,6 +1788,7 @@ function renderList(){
 }
 $('search').addEventListener('input',renderList);
 $('statusFilter').addEventListener('change',renderList);
+$('cardSetFilter').addEventListener('change',renderList);
 $('sortFilter').addEventListener('change',renderList);
 
 const enemyImg=new Image();
@@ -1817,7 +1874,7 @@ function nextWave(){
 function startReview(){
  reviewMode='srs';
  reviewDirection='mixed';
- reviewQueue=dueCards().sort((a,b)=>{
+ reviewQueue=cardsForSet($('reviewSetFilter')?.value||'all',dueCards()).sort((a,b)=>{
    const pr=s=>({relearning:0,learning:1,new:2,mature:3}[cardStatus(s)]??4);
    return pr(a)-pr(b) || (a.due||0)-(b.due||0);
  });
@@ -1838,10 +1895,10 @@ function startTraining(cards,direction=null){
 }
 $('startCustomTraining').onclick=()=>{
  const states=[...document.querySelectorAll('.train-status:checked')].map(x=>x.value);
- startTraining(db.cards.filter(c=>states.includes(cardStatus(c))),$('trainingDirection')?.value||'mixed');
+ startTraining(cardsForSet($('trainingSetFilter')?.value||'all').filter(c=>states.includes(cardStatus(c))),$('trainingDirection')?.value||'mixed');
 };
-$('trainAllBtn').onclick=()=>startTraining(db.cards);
-$('trainUnsafeBtn').onclick=()=>startTraining(db.cards.filter(c=>cardStatus(c)!=='mature'));
+$('trainAllBtn').onclick=()=>startTraining(cardsForSet($('trainingSetFilter')?.value||'all'));
+$('trainUnsafeBtn').onclick=()=>startTraining(cardsForSet($('trainingSetFilter')?.value||'all').filter(c=>cardStatus(c)!=='mature'));
 function updateSelectionCount(){ $('selectionCount').textContent=`${selectedCards.size} ausgewählt`; }
 $('trainSelectedBtn').onclick=()=>startTraining(db.cards.filter(c=>selectedCards.has(c.id)));
 $('selectVisibleBtn').onclick=()=>{
@@ -1922,8 +1979,9 @@ function weightedPick(cards,power=1){
  for(let i=0;i<cards.length;i++){r-=weights[i];if(r<=0)return cards[i]}
  return cards[cards.length-1];
 }
+let advCardPool=null;
 function buildAdventureDeck(kind,count){
- const pool=db.cards.filter(c=>c&&c.front&&c.back);
+ const pool=(advCardPool||db.cards).filter(c=>c&&c.front&&c.back);
  if(!pool.length)return [];
  let source=pool,power=1;
  if(kind==='elite'){
@@ -2083,7 +2141,8 @@ function advBeginEncounter(index){
 }
 function advStart(){
  AdvAudio.unlock();AdvAudio.startMusic();
- const cards=db.cards.filter(c=>c&&c.front&&c.back);
+ advCardPool=cardsForSet($('adventureSetFilter')?.value||'all').filter(c=>c&&c.front&&c.back);
+ const cards=advCardPool;
  if(!cards.length){alert('Du brauchst mindestens eine Karte für ein Abenteuer.');return}
  ensureAdventureMeta().runs++;
  advState={direction:$('adventureDirection')?.value||'mixed',encounterIndex:0,kind:'normal',heroHp:180,heroHpMax:180,enemyHp:100,enemyHpMax:100,
@@ -2396,7 +2455,7 @@ $('editCurrent').onclick=()=>{if(current)openEditor(current)};
 $('startAdventure').onclick=advStart;
 $('advSoundBtn').onclick=()=>{AdvAudio.unlock();const on=AdvAudio.toggle();$('advSoundBtn').textContent=on?'🔊':'🔇';};
 
-$('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;clearTimeout(advTimerHandle);AdvAudio.stopMusic();showScreen('home');refresh();renderAdventureHomeStats();}};
+$('leaveAdventure').onclick=()=>{if(!advState||confirm('Abenteuer wirklich beenden?')){advState=null;advCardPool=null;clearTimeout(advTimerHandle);AdvAudio.stopMusic();showScreen('home');refresh();renderAdventureHomeStats();}};
 $('advSubmit').onclick=advSubmitAnswer;
 $('advNext').onclick=()=>{if(!advState)return;if(advState.heroHp<=0)advFinishRun(false);else if(advState.enemyHp<=0)advWinEncounter();else advNextQuestion();};
 $('advInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();advSubmitAnswer();}});
