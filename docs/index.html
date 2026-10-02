@@ -791,8 +791,9 @@ function refresh(){
  $('homeText').textContent = db.cards.length
    ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
    : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
- refreshReviewExpedition(due);
  renderSetSelectors();
+ refreshReviewExpedition(cardsForSet($('reviewSetFilter')?.value||'all',due));
+
  renderSetLibrary();
  renderList();
 }
@@ -1777,7 +1778,7 @@ function renderList(){
    const status=cardStatus(c);
    d.innerHTML=`<input class="card-select" type="checkbox" data-id="${c.id}" ${selectedCards.has(c.id)?'checked':''}><div>
       <div class="front">${safe(c.front)}${c.reading?`<div class="note">${safe(c.reading)}</div>`:''}</div>
-      <div class="meta"><span class="status-chip ${statusClass(status)}">${statusLabel(status)}</span>${safe(c.back).replace(/\n/g,' · ')} · fällig ${formatDue(c.due)}</div>
+      <div class="meta"><span class="status-chip ${statusClass(status)}">${statusLabel(status)}</span><span class="set-chip">${safe((setDefinitions().find(s=>c.setIds?.includes(s.id))||{name:'Meine Karten'}).name)}</span> ${safe(c.back).replace(/\n/g,' · ')} · fällig ${formatDue(c.due)}</div>
       <div class="history">${c.history?.length||0} Reviews · ${c.lapses||0} Fehler · Intervall ${Math.round((c.intervalDays||0)*10)/10} Tage</div>
     </div><div><button class="btn small">✏️</button></div>`;
    d.querySelector('button').onclick=()=>openEditor(c);
