@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v9.4</title>
+<title>Kotodama SRS – Prototyp v10.0</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -174,6 +174,13 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 @keyframes advImpact{0%{opacity:0;transform:scale(.2)}30%{opacity:1;transform:scale(1.15)}100%{opacity:0;transform:scale(1.5)}}
 
 
+.main-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.menu-card{min-height:96px;text-align:left;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:4px;padding:16px}
+.menu-card strong{font-size:1.08rem}.menu-card span{font-size:.82rem;opacity:.76;font-weight:500}
+.header-cloud{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;max-width:55%}
+.header-cloud .cloud-status{margin:0}.header-cloud .cloud-email{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mode-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}.mode-head h2{margin:0}.settings-section{padding:12px 0;border-top:1px solid rgba(255,255,255,.1)}.settings-section:first-of-type{border-top:0}
+@media(max-width:620px){.main-menu{grid-template-columns:1fr}.header{align-items:flex-start}.header-cloud{max-width:48%}.header-cloud .cloud-email{display:none}}
 @media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
@@ -181,8 +188,14 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v9.4</div></div>
-   <div class="row"><button class="btn small ghost" id="importBtn">Import</button><button class="btn small ghost" id="exportBtn">Export</button></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v10.0</div></div>
+   <div class="header-cloud">
+     <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
+     <div id="cloudEmail" class="cloud-email"></div>
+     <button class="btn small ghost" id="cloudAccountBtn">Konto</button>
+     <button class="btn small ghost" id="cloudSyncBtn" disabled>↻</button>
+     <button class="btn small ghost hidden" id="cloudLogoutBtn">Abmelden</button>
+   </div>
  </div>
 
  <div class="topnav">
@@ -201,81 +214,55 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <div class="stat"><strong id="matureCount">0</strong>reif</div>
      <div class="stat"><strong id="relearnCount">0</strong>wiederlernen</div>
    </div>
-   <div class="panel cloud-panel" style="margin-top:12px">
-     <div style="font-weight:800;color:var(--teal);margin-bottom:7px">☁ Cloud-Speicher</div>
-     <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
-     <div id="cloudEmail" class="cloud-email"></div>
-     <div class="row" style="margin-top:10px">
-       <button class="btn small primary" id="cloudAccountBtn">Anmelden / Konto</button>
-       <button class="btn small" id="cloudSyncBtn" disabled>Jetzt synchronisieren</button>
-       <button class="btn small ghost hidden" id="cloudLogoutBtn">Abmelden</button>
-     </div>
-     <div class="note" style="margin-top:7px">Lokaler Speicher bleibt als Offline-Fallback erhalten. Nach der Anmeldung werden Karten zwischen deinen Geräten zusammengeführt.</div>
+   <div class="note" id="homeText" style="margin-top:10px"></div>
+   <div class="main-menu">
+     <button class="btn menu-card primary" data-screen="reviewMenu"><strong>⚔️ Review</strong><span>Heutige Expedition und fällige Karten</span></button>
+     <button class="btn menu-card" data-screen="trainingMenu"><strong>🎯 Freies Training</strong><span>Unabhängig von der SRS-Fälligkeit üben</span></button>
+     <button class="btn menu-card" data-screen="adventureMenu"><strong>🗺️ Abenteuer</strong><span>Vokabelkampf mit Texteingabe und Bossen</span></button>
+     <button class="btn menu-card" id="gameSettingsBtn"><strong>⚙️ Spieleinstellungen</strong><span>Lesung, Sound, Daten und Wörterbücher</span></button>
    </div>
-   <div class="panel" style="margin-top:12px">
-     <div style="font-weight:800;color:var(--amber);margin-bottom:6px">Heutige Expedition</div>
-     <div class="note" id="homeText">Füge zuerst eine Karte hinzu.</div>
-     <div class="row" style="margin-top:12px">
-       <button class="btn primary" id="startReview">Review starten</button>
-       <button class="btn" id="gameSettingsBtn">⚙️ Spieleinstellungen</button>
-     </div>
+ </section>
+
+ <section id="reviewMenu" class="screen">
+   <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
+   <div class="panel">
+     <div class="section-title">Heutige Expedition</div>
+     <div class="note">Trainiert nur Karten, die nach deinem SRS jetzt fällig sind.</div>
+     <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
    </div>
+   <div class="panel">
+     <div class="section-title">Review-Optionen</div>
+     <div class="note">Die Set-Auswahl kommt mit dem nächsten Ausbau der Wortlisten. Deine aktuelle SRS-Logik bleibt unverändert.</div>
+   </div>
+ </section>
 
-
+ <section id="trainingMenu" class="screen">
+   <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>🎯 Freies Training</h2></div>
    <div class="panel train-panel">
-     <div class="section-title">⚔️ Freies Training</div>
      <div class="note">Jederzeit üben – unabhängig von der SRS-Fälligkeit. Freies Training verändert deine nächsten Fälligkeitstermine nicht.</div>
-     <div class="train-checks">
+     <div class="train-checks" style="margin-top:10px">
        <label class="train-check"><input type="checkbox" class="train-status" value="new" checked> Neu</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="learning" checked> Lernend</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="relearning" checked> Wiederlernen</label>
        <label class="train-check"><input type="checkbox" class="train-status" value="mature"> Reif</label>
      </div>
-     <div class="row" style="margin:8px 0">
+     <div class="row" style="margin:10px 0">
        <span class="note">Abfragerichtung:</span>
-       <select id="trainingDirection">
-         <option value="mixed">Gemischt</option>
-         <option value="jp-de">Japanisch → Deutsch</option>
-         <option value="de-jp">Deutsch → Japanisch</option>
-       </select>
+       <select id="trainingDirection"><option value="mixed">Gemischt</option><option value="jp-de">Japanisch → Deutsch</option><option value="de-jp">Deutsch → Japanisch</option></select>
      </div>
-     <div class="row">
-       <button class="btn primary" id="startCustomTraining">Auswahl trainieren</button>
-       <button class="btn" id="trainAllBtn">Alle Karten trainieren</button>
-       <button class="btn ghost" id="trainUnsafeBtn">Nur unsichere</button>
-     </div>
+     <div class="row"><button class="btn primary" id="startCustomTraining">Auswahl trainieren</button><button class="btn" id="trainAllBtn">Alle Karten trainieren</button><button class="btn ghost" id="trainUnsafeBtn">Nur unsichere</button></div>
    </div>
+ </section>
 
+ <section id="adventureMenu" class="screen">
+   <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>🗺️ 冒険（ぼうけん）– Abenteuer</h2></div>
    <div class="panel adventure-panel">
-     <div class="section-title">⚔️ 冒険（ぼうけん）– Abenteuer</div>
-     <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Er nutzt deine eigenen Karten, verändert aber niemals das SRS.</div>
-     <div class="row" style="margin-top:10px">
-       <select id="adventureDirection">
-         <option value="mixed">Gemischt</option>
-         <option value="jp-de">Japanisch → Deutsch</option>
-         <option value="de-jp">Deutsch → Japanisch (Romaji)</option>
-       </select>
+     <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Er nutzt deine Karten, verändert aber niemals das SRS.</div>
+     <div class="row" style="margin-top:12px">
+       <select id="adventureDirection"><option value="mixed">Gemischt</option><option value="jp-de">Japanisch → Deutsch</option><option value="de-jp">Deutsch → Japanisch (Romaji)</option></select>
        <button class="btn primary" id="startAdventure">Abenteuer starten</button>
      </div>
-     <div class="note" id="adventureHomeStats" style="margin-top:7px"></div>
-   </div>
-
-   <div class="panel">
-     <div style="font-weight:800;color:var(--teal);margin-bottom:6px">📚 Offline-Wörterbücher</div>
-     <div class="dict-status" id="wadokuHomeStatus">Deutsch → Japanisch: FreeDict-Lernwörterbuch wird bei Bedarf lokal geladen.</div>
-     <div class="dict-status" id="dictHomeStatus" style="margin-top:4px">JMdict: Lesung, Commonness und Japanisch → Deutsch.</div>
-     <div class="row" style="margin-top:10px">
-       <button class="btn small primary" id="installDictBtn">Wörterbücher neu laden</button>
-       <button class="btn small" id="importDictBtn">Wörterbuch-Datei importieren</button>
-       <button class="btn small ghost" id="removeDictBtn">Wörterbuch entfernen</button>
-     </div>
-     <div class="progressline hidden" id="dictProgress"><div class="progressfill" id="dictProgressFill"></div></div>
-     <div class="note" style="margin-top:7px">Deutsch → Japanisch: FreeDict deu-jpn (CC BY-SA 3.0), ergänzt mit JMdict-Lesungen/Commonness. Japanisch → Deutsch bleibt vorerst auf dem stabilen JMdict-Pfad. Beide Quellen werden lokal zwischengespeichert und funktionieren danach offline.<br><a href="https://freedict.org/" target="_blank" rel="noopener">FreeDict</a> · <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a></div>
-   </div>
-
-   <div class="panel">
-     <div style="font-weight:800;margin-bottom:6px">Prinzip dieses Prototyps</div>
-     <div class="note">Karten bleiben dauerhaft editierbar. Neue Karten können jederzeit ergänzt werden. Reviews werden anhand ihrer Fälligkeit ausgewählt und nach deiner Bewertung neu terminiert.</div>
+     <div class="note" id="adventureHomeStats" style="margin-top:9px"></div>
    </div>
  </section>
 
@@ -441,16 +428,31 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <div class="modal" id="gameSettingsModal">
  <div class="paper modal-card">
    <h3 style="margin-top:0">⚙️ Spieleinstellungen</h3>
-   <div class="note" style="margin-bottom:12px">Globale Einstellungen für Reviews, Training und Abenteuer.</div>
-   <label class="train-check"><input type="checkbox" id="showReadingByDefault" checked> Lesung bei Japanisch → Deutsch automatisch anzeigen</label>
-   <div class="note" style="margin:4px 0 14px">Ausgeschaltet: Kanji zunächst ohne Hilfe lesen; „Lesung“ blendet sie pro Karte ein.</div>
-   <label class="train-check"><input type="checkbox" id="soundEnabled" checked> Sound allgemein</label>
-   <label class="train-check" style="margin-top:8px"><input type="checkbox" id="correctSoundEnabled" checked> Sound bei richtiger Antwort</label>
-   <label class="train-check" style="margin-top:8px"><input type="checkbox" id="wrongSoundEnabled" checked> Sound bei falscher Antwort</label>
-   <div class="note" style="margin-top:8px">Die Antwortsounds können unabhängig voneinander deaktiviert werden. „Sound allgemein“ schaltet sämtliche Spielsounds stumm.</div>
-   <div class="row" style="margin-top:16px">
-     <button class="btn primary" id="gameSettingsClose">Fertig</button>
+   <div class="settings-section">
+     <div class="section-title">Lernen</div>
+     <label class="train-check"><input type="checkbox" id="showReadingByDefault" checked> Lesung bei Japanisch → Deutsch automatisch anzeigen</label>
+     <div class="note" style="margin-top:5px">Ausgeschaltet: Kanji zunächst ohne Hilfe lesen; „Lesung“ blendet sie pro Karte ein.</div>
    </div>
+   <div class="settings-section">
+     <div class="section-title">Sound</div>
+     <label class="train-check"><input type="checkbox" id="soundEnabled" checked> Sound allgemein</label>
+     <label class="train-check" style="margin-top:8px"><input type="checkbox" id="correctSoundEnabled" checked> Sound bei richtiger Antwort</label>
+     <label class="train-check" style="margin-top:8px"><input type="checkbox" id="wrongSoundEnabled" checked> Sound bei falscher Antwort</label>
+   </div>
+   <div class="settings-section">
+     <div class="section-title">Daten</div>
+     <div class="row"><button class="btn small" id="importBtn">Import</button><button class="btn small" id="exportBtn">Export</button></div>
+     <div class="note" style="margin-top:6px">Speicherstand als JSON sichern oder wiederherstellen.</div>
+   </div>
+   <div class="settings-section">
+     <div class="section-title">📚 Offline-Wörterbücher</div>
+     <div class="dict-status" id="wadokuHomeStatus">Deutsch → Japanisch: FreeDict-Lernwörterbuch wird bei Bedarf lokal geladen.</div>
+     <div class="dict-status" id="dictHomeStatus" style="margin-top:4px">JMdict: Lesung, Commonness und Japanisch → Deutsch.</div>
+     <div class="row" style="margin-top:10px"><button class="btn small primary" id="installDictBtn">Neu laden</button><button class="btn small" id="importDictBtn">Datei importieren</button><button class="btn small ghost" id="removeDictBtn">Entfernen</button></div>
+     <div class="progressline hidden" id="dictProgress"><div class="progressfill" id="dictProgressFill"></div></div>
+     <div class="note" style="margin-top:7px">FreeDict + JMdict werden lokal zwischengespeichert und funktionieren danach offline.</div>
+   </div>
+   <div class="row" style="margin-top:12px"><button class="btn primary" id="gameSettingsClose">Fertig</button></div>
  </div>
 </div>
 
