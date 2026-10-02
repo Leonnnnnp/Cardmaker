@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v10.0</title>
+<title>Kotodama SRS – Prototyp v10.1</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -188,7 +188,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v10.0</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v10.1</div></div>
    <div class="header-cloud">
      <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
      <div id="cloudEmail" class="cloud-email"></div>
@@ -227,7 +227,8 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
    <div class="panel">
      <div class="section-title">Heutige Expedition</div>
-     <div class="note">Trainiert nur Karten, die nach deinem SRS jetzt fällig sind.</div>
+     <div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
+     <div class="note" id="reviewNextDue" style="margin-top:5px"></div>
      <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
    </div>
    <div class="panel">
@@ -703,6 +704,28 @@ function dueCards(){
  const t=now();
  return db.cards.filter(c => (c.due||0)<=t).sort((a,b)=>(a.due||0)-(b.due||0));
 }
+function formatNextDue(ts,base=now()){
+ const diff=Math.max(0,ts-base), mins=Math.max(1,Math.ceil(diff/V5_MIN));
+ if(mins<60)return 'in '+mins+' Minute'+(mins===1?'':'n');
+ const d=new Date(ts), today=new Date(base), tomorrow=new Date(base);tomorrow.setDate(tomorrow.getDate()+1);
+ const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+ const sameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+ if(sameDay(d,today))return 'heute um '+time+' Uhr';
+ if(sameDay(d,tomorrow))return 'morgen um '+time+' Uhr';
+ return 'am '+d.toLocaleDateString('de-DE',{day:'numeric',month:'long'})+' um '+time+' Uhr';
+}
+function refreshReviewExpedition(due){
+ const summary=$('reviewDueSummary'), next=$('reviewNextDue');if(!summary||!next)return;
+ if(!db.cards.length){summary.textContent='Noch keine Karten vorhanden.';next.textContent='Lege zuerst deine erste Karte an.';return}
+ const t=now(), future=db.cards.map(c=>Number(c.due)||0).filter(x=>x>t).sort((a,b)=>a-b);
+ if(due.length){
+   summary.textContent='⚔️ '+due.length+' Karte'+(due.length===1?' ist':'n sind')+' jetzt fällig.';
+   next.textContent=future.length?'Nächster späterer Termin: '+formatNextDue(future[0],t)+'.':'';
+ }else{
+   summary.textContent='✓ Für jetzt bist du fertig!';
+   next.textContent=future.length?'Nächste Review: '+formatNextDue(future[0],t)+'.':'Aktuell ist kein weiterer Review-Termin vorhanden.';
+ }
+}
 function refresh(){
  migrateV5();
  syncReadingPreferenceUI();
@@ -716,6 +739,7 @@ function refresh(){
  $('homeText').textContent = db.cards.length
    ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
    : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
+ refreshReviewExpedition(due);
  renderList();
 }
 function showScreen(id){
