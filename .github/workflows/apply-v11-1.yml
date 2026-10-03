@@ -1,10 +1,8 @@
-name: Apply v11.1 guided sets
+name: Apply v11.2 review set tiles
 on:
   push:
-    paths:
-      - '.github/workflows/apply-v11-1.yml'
-permissions:
-  contents: write
+    paths: ['.github/workflows/apply-v11-1.yml']
+permissions: {contents: write}
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -14,55 +12,52 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path("docs/index.html")
-          s=p.read_text()
-          s=s.replace("v11.0","v11.1")
-          sup='<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>'
-          if 'curated-sets.js' not in s:
-              s=s.replace(sup,sup+'\n<script src="./resources/curated-sets.js"></script>')
-          old='const CURATED_SETS=[\n // Kuratierte Inhalte werden ab v11.1 gemeinsam ergänzt.\n];'
-          s=s.replace(old,'const CURATED_SETS=window.KOTODAMA_CURATED_SETS||[];')
-          a=s.index("function renderSetLibrary(){")
-          b=s.index("function ensureCardV5(c){",a)
-          block=r'''function curatedIntroducedIds(set){return new Set(db.cards.filter(c=>c.curatedSetId===set.id&&c.sourceTemplateId).map(c=>c.sourceTemplateId))}
-          function lessonState(set,lesson){const ids=curatedIntroducedIds(set),done=lesson.cards.filter(x=>ids.has(x.id)).length;return {done,total:lesson.cards.length,complete:done===lesson.cards.length}}
-          function nextGuidedLesson(set){return set.lessons.find(l=>!lessonState(set,l).complete)||null}
-          function introduceGuidedLesson(setId,lessonId){
-           const set=CURATED_SETS.find(s=>s.id===setId),lesson=set?.lessons.find(l=>l.id===lessonId);if(!set||!lesson)return;
-           const known=curatedIntroducedIds(set),fresh=lesson.cards.filter(t=>!known.has(t.id));if(!fresh.length)return;
-           if(!confirm('Lerneinheit „'+lesson.title+'“ mit '+fresh.length+' neuer/n Karte(n) beginnen?'))return;
-           const t=now();
-           for(const x of fresh)db.cards.push({id:uid(),front:x.front,reading:x.reading||'',back:x.back,example:x.example||'',createdAt:t,updatedAt:t,due:t,reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'curated',setIds:[set.id],curatedSetId:set.id,sourceTemplateId:x.id,lessonId:lesson.id,cardType:x.type||'word',contrastGroup:x.contrast||null,register:x.register||null});
-           db.meta.sets[set.id]={...(db.meta.sets[set.id]||{}),lastIntroducedLesson:lesson.id};save();
-          }
-          function renderSetLibrary(){
-           const box=$('setLibrary');if(!box)return;
-           box.innerHTML=setDefinitions().map(s=>{
-            const active=cardsForSet(s.id),total=s.kind==='curated'?(s.cards?.length||0):active.length,introduced=s.kind==='curated'?active.filter(c=>c.curatedSetId===s.id).length:active.length,pct=total?Math.round(introduced/total*100):0,safety=setSafetyScore(active);
-            let guided='';
-            if(s.kind==='curated'&&s.mode==='guided'){const next=nextGuidedLesson(s);guided=next?(()=>{const st=lessonState(s,next),fresh=st.total-st.done;return '<div style="margin-top:12px;padding:12px;background:rgba(255,255,255,.05);border-radius:6px"><div class="note">ALS NÄCHSTES EMPFOHLEN</div><div style="font-weight:800;margin:4px 0">'+safe(next.title)+'</div><div class="note">'+safe(next.summary||'')+' · '+fresh+' neue Karte'+(fresh===1?'':'n')+'</div><button class="btn primary small guided-start" data-set="'+s.id+'" data-lesson="'+next.id+'" style="margin-top:9px">Lerneinheit beginnen</button></div>'})():'<div class="note" style="margin-top:10px">✓ Alle Lerneinheiten dieses Sets wurden eingeführt.</div>'}
-            return '<div class="panel set-card"><div class="set-card-head"><div><div class="section-title">'+safe(s.name)+'</div><div class="note">'+safe(s.description||'')+'</div></div><span class="set-chip">'+(s.kind==='user'?'USER-SET':'GEFÜHRT')+'</span></div><div class="set-progress"><div style="width:'+pct+'%"></div></div><div class="note">'+(s.kind==='user'?active.length+' Karten · Sicherheit Ø '+safety+'%':introduced+' / '+total+' eingeführt · Sicherheit Ø '+safety+'%')+'</div>'+guided+'</div>';
+          p=Path("docs/index.html"); s=p.read_text().replace("v11.1","v11.2")
+          css='.review-set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:12px 0}.review-set-tile{aspect-ratio:1/1;min-height:145px;padding:12px;background:#241c39;border:2px solid #51456b;border-radius:10px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 3px 0 var(--frame)}.review-set-tile.selected{border-color:var(--amber)}.review-set-tile h3{margin:0;font-size:1rem}.review-set-tile .tile-count{font-size:1.65rem;font-weight:900;color:var(--amber)}.review-set-actions{display:flex;gap:5px;flex-wrap:wrap}.review-set-actions .btn{padding:6px 8px;font-size:11px}@media(max-width:420px){.review-set-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.review-set-tile{min-height:138px;padding:10px}}'
+          if '.review-set-grid{' not in s:s=s.replace('.main-menu{display:grid;',css+'\n.main-menu{display:grid;')
+          s=s.replace('<div class="row" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>','<div class="note">Wähle ein Set. Die Kachel zeigt dir direkt, was fällig ist und wie weit du bist.</div><div id="reviewSetTiles" class="review-set-grid"></div><select id="reviewSetFilter" class="hidden"></select>')
+          s=s.replace('<div class="panel">\n     <div class="section-title">Review-Optionen</div>\n     <div class="note">Die Set-Auswahl kommt mit dem nächsten Ausbau der Wortlisten. Deine aktuelle SRS-Logik bleibt unverändert.</div>\n   </div>','<div class="panel"><div class="section-title">Abfragerichtung</div><div class="note">Gemischte Reviews gewichten aktiven Abruf stärker: Deutsch → Japanisch erscheint häufiger als Japanisch → Deutsch.</div></div>')
+          anchor='function curatedIntroducedIds(set){'
+          tilefun=r'''function renderReviewSetTiles(){
+           const box=$('reviewSetTiles'),select=$('reviewSetFilter');if(!box||!select)return;
+           const chosen=select.value||'all',due=dueCards();
+           box.innerHTML=setDefinitions().map(set=>{
+             const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
+             const total=set.kind==='curated'?(set.cards?.length||0):cards.length,introduced=set.kind==='curated'?cards.filter(c=>c.curatedSetId===set.id).length:cards.length;
+             const progress=total?Math.round(introduced/total*100):0,next=set.kind==='curated'&&set.mode==='guided'?nextGuidedLesson(set):null;
+             return '<div class="review-set-tile '+(chosen===set.id?'selected':'')+'" data-review-set="'+set.id+'"><div><h3>'+safe(set.name)+'</h3><div class="tile-count">'+setDue.length+'</div><div class="note">jetzt fällig</div></div><div><div class="set-progress"><div style="width:'+progress+'%"></div></div><div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':'Sicherheit Ø '+safety+'%')+'</div><div class="review-set-actions"><button class="btn small '+(setDue.length?'primary':'ghost')+'" data-review-now="'+set.id+'" '+(setDue.length?'':'disabled')+'>Fällige lernen</button>'+(next?'<button class="btn small ghost" data-review-new="'+set.id+'" data-lesson="'+next.id+'">+ Neue</button>':'')+'</div></div></div>';
            }).join('');
-           box.querySelectorAll('.guided-start').forEach(b=>b.onclick=()=>introduceGuidedLesson(b.dataset.set,b.dataset.lesson));
+           box.querySelectorAll('[data-review-set]').forEach(t=>t.onclick=e=>{if(e.target.closest('button'))return;select.value=t.dataset.reviewSet;refreshReviewExpedition(cardsForSet(select.value,dueCards()));renderReviewSetTiles()});
+           box.querySelectorAll('[data-review-now]').forEach(b=>b.onclick=e=>{e.stopPropagation();select.value=b.dataset.reviewNow;startReview()});
+           box.querySelectorAll('[data-review-new]').forEach(b=>b.onclick=e=>{e.stopPropagation();introduceGuidedLesson(b.dataset.reviewNew,b.dataset.lesson)});
           }
           '''
-          s=s[:a]+block+s[b:]
-          p.write_text(s)
+          if 'function renderReviewSetTiles(){' not in s:s=s.replace(anchor,tilefun+anchor)
+          s=s.replace("renderSetSelectors();\n refreshReviewExpedition","renderSetSelectors();\n renderReviewSetTiles();\n refreshReviewExpedition")
+          old=""" const state=cardStatus(card);
+ const jpProbability=state==='new'?0.70:state==='mature'?0.45:0.55;
+ return Math.random()<jpProbability?'jp-de':'de-jp';"""
+          new=""" // Aktiver Abruf (Deutsch → Japanisch) wird bewusst stärker gewichtet.
+ const jpProbability=0.35;
+ return Math.random()<jpProbability?'jp-de':'de-jp';"""
+          if old not in s: raise SystemExit("direction block not found")
+          s=s.replace(old,new); p.write_text(s)
           PY
-      - name: Validate inline JavaScript
+      - name: Validate
         run: |
           python - <<'PY'
           import re
           s=open("docs/index.html").read()
-          js=re.findall(r'<script>(.*?)</script>',s,re.S)
-          open("/tmp/app.js","w").write("\n".join(js))
+          open("/tmp/app.js","w").write("\n".join(re.findall(r'<script>(.*?)</script>',s,re.S)))
+          assert 'function renderReviewSetTiles()' in s
+          assert "const jpProbability=0.35" in s
+          assert "cardsForSet($('reviewSetFilter')?.value||'all',dueCards())" in s
           PY
           node --check /tmp/app.js
-          node --check docs/resources/curated-sets.js
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/index.html
-          git diff --cached --quiet || git commit -m "Deploy v11.1 guided Nuancen set"
+          git diff --cached --quiet || git commit -m "Add v11.2 review set tiles and active recall weighting"
           git push
