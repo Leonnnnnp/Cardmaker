@@ -102,7 +102,7 @@ window.addEventListener("DOMContentLoaded",()=>{
    return Math.random()<0.35?"jp-de":"de-jp";
  };
  window.renderReviewSetTiles=function(){
-   if(!window.db||typeof setDefinitions!=="function")return;
+   if(typeof setDefinitions!=="function")return;
    const due=dueCards(),chosen=select.value||"all";
    grid.innerHTML=setDefinitions().map(set=>{
      const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
