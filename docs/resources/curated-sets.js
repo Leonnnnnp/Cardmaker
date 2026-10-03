@@ -83,3 +83,38 @@ lessons:[
 ],
 get cards(){return this.lessons.flatMap(l=>l.cards)}
 }];
+/* v11.2 review UX */
+window.addEventListener("DOMContentLoaded",()=>{
+ const $id=id=>document.getElementById(id);
+ document.querySelectorAll(".sub").forEach(el=>{if(el.textContent.includes("v11.1"))el.textContent=el.textContent.replace("v11.1","v11.2")});
+ const menu=$id("reviewMenu"), select=$id("reviewSetFilter");
+ if(!menu||!select||typeof window.startReview!=="function")return;
+ const style=document.createElement("style");
+ style.textContent=".review-set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:12px 0}.review-set-tile{aspect-ratio:1/1;min-height:145px;padding:12px;background:#241c39;border:2px solid #51456b;border-radius:10px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 3px 0 var(--frame)}.review-set-tile.selected{border-color:var(--amber)}.review-set-tile h3{margin:0;font-size:1rem}.review-set-tile .tile-count{font-size:1.65rem;font-weight:900;color:var(--amber)}.review-set-actions{display:flex;gap:5px;flex-wrap:wrap}.review-set-actions .btn{padding:6px 8px;font-size:11px}@media(max-width:420px){.review-set-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.review-set-tile{min-height:138px;padding:10px}}";
+ document.head.appendChild(style);
+ const row=select.closest(".row");
+ const grid=document.createElement("div");grid.id="reviewSetTiles";grid.className="review-set-grid";
+ if(row){row.before(grid);row.classList.add("hidden")}
+ const note=document.createElement("div");note.className="note";note.textContent="Wähle ein Set. Die Kachel zeigt dir direkt, was fällig ist und wie weit du bist.";grid.before(note);
+ const opt=menu.querySelector(".section-title");if(opt&&opt.textContent==="Review-Optionen"){const panel=opt.closest(".panel");opt.textContent="Abfragerichtung";const n=panel.querySelector(".note");if(n)n.textContent="Gemischte Reviews gewichten aktiven Abruf stärker: Deutsch → Japanisch erscheint häufiger als Japanisch → Deutsch."}
+ window.chooseReviewDirection=function(card){
+   if(reviewDirection==="jp-de"||reviewDirection==="de-jp")return reviewDirection;
+   return Math.random()<0.35?"jp-de":"de-jp";
+ };
+ window.renderReviewSetTiles=function(){
+   if(!window.db||typeof setDefinitions!=="function")return;
+   const due=dueCards(),chosen=select.value||"all";
+   grid.innerHTML=setDefinitions().map(set=>{
+     const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
+     const total=set.kind==="curated"?(set.cards?.length||0):cards.length,introduced=set.kind==="curated"?cards.filter(x=>x.curatedSetId===set.id).length:cards.length;
+     const progress=total?Math.round(introduced/total*100):0,next=set.kind==="curated"&&set.mode==="guided"?nextGuidedLesson(set):null;
+     return '<div class="review-set-tile '+(chosen===set.id?'selected':'')+'" data-rset="'+set.id+'"><div><h3>'+safe(set.name)+'</h3><div class="tile-count">'+setDue.length+'</div><div class="note">jetzt fällig</div></div><div><div class="set-progress"><div style="width:'+progress+'%"></div></div><div class="note">'+(set.kind==="curated"?introduced+" / "+total+" eingeführt":"Sicherheit Ø "+safety+"%")+'</div><div class="review-set-actions"><button class="btn small '+(setDue.length?'primary':'ghost')+'" data-now="'+set.id+'" '+(setDue.length?'':'disabled')+'>Fällige lernen</button>'+(next?'<button class="btn small ghost" data-new="'+set.id+'" data-lesson="'+next.id+'">+ Neue</button>':'')+'</div></div></div>';
+   }).join("");
+   grid.querySelectorAll("[data-rset]").forEach(t=>t.onclick=e=>{if(e.target.closest("button"))return;select.value=t.dataset.rset;refreshReviewExpedition(cardsForSet(select.value,dueCards()));window.renderReviewSetTiles()});
+   grid.querySelectorAll("[data-now]").forEach(b=>b.onclick=e=>{e.stopPropagation();select.value=b.dataset.now;startReview()});
+   grid.querySelectorAll("[data-new]").forEach(b=>b.onclick=e=>{e.stopPropagation();introduceGuidedLesson(b.dataset.new,b.dataset.lesson);setTimeout(window.renderReviewSetTiles,0)});
+ };
+ const oldRefresh=window.refresh;
+ window.refresh=function(){oldRefresh();window.renderReviewSetTiles()};
+ window.renderReviewSetTiles();
+});
