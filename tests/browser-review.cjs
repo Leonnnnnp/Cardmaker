@@ -41,7 +41,7 @@ async function main() {
           tiles: tiles.map(t => ({bottom: t.getBoundingClientRect().bottom, buttons: [...t.querySelectorAll('button')].map(b => b.getBoundingClientRect().bottom)}))};
       });
       assert.equal(layout.overflow, false, 'no horizontal overflow at ' + width);
-      assert.equal(layout.columns, width < 340 ? 1 : 2);
+      assert.equal(layout.columns, width < 340 ? 1 : width <= 520 ? 2 : 3);
       for (const tile of layout.tiles) {
         assert.ok(tile.buttons.every(bottom => bottom <= tile.bottom + 1), 'buttons stay inside tiles at ' + width);
         assert.ok(layout.statusTop >= tile.bottom, 'status stays below tiles at ' + width);
