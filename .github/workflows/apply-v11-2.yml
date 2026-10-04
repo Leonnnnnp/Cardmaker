@@ -1,0 +1,87 @@
+name: Apply v11.2 review polish
+on:
+  push:
+    paths: ['.github/workflows/apply-v11-2.yml']
+permissions: {contents: write}
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch responsive review sets and direction balance
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("docs/index.html"); s=p.read_text()
+          s=s.replace("v11.1","v11.2")
+          css=r'''
+          /* v11.2 review set tiles */
+          .review-set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+          .review-set-tile{min-width:0;min-height:230px;background:var(--panel2);border:2px solid #5e5078;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+          .review-set-tile.selected{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+          .review-set-title{font-size:1.05rem;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+          .review-set-due{font-size:2rem;font-weight:900;color:var(--amber);line-height:1}
+          .review-set-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+          .review-set-actions .btn{flex:1 1 110px;min-width:0;white-space:normal}
+          #reviewSetFilterRow{display:none}
+          .review-status-block{clear:both;margin-top:4px;padding-top:2px}
+          @media(max-width:520px){
+            .review-set-grid{grid-template-columns:1fr;gap:10px}
+            .review-set-tile{min-height:0}
+            .review-set-actions{display:grid;grid-template-columns:1fr 1fr}
+            .review-set-actions .btn{width:100%}
+          }
+          '''
+          s=s.replace('</style>',css+'\n</style>',1)
+          old='<div class="row" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>\n     <div id="reviewDueSummary"'
+          new='<div class="row" id="reviewSetFilterRow" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>\n     <div class="review-set-grid" id="reviewSetTiles"></div>\n     <div class="review-status-block"><div id="reviewDueSummary"'
+          s=s.replace(old,new)
+          s=s.replace('<div class="note" id="reviewNextDue" style="margin-top:5px"></div>\n     <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>',
+                      '<div class="note" id="reviewNextDue" style="margin-top:5px"></div></div>\n     <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>')
+          marker='function refreshReviewExpedition(due){'
+          fn=r'''function renderReviewSetTiles(){
+           const box=$('reviewSetTiles'),sel=$('reviewSetFilter');if(!box||!sel)return;
+           const defs=setDefinitions(),due=dueCards(),selected=sel.value||'all';
+           box.innerHTML=defs.map(set=>{
+             const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
+             const total=set.kind==='curated'?(set.cards?.length||0):cards.length;
+             const introduced=set.kind==='curated'?cards.filter(c=>c.curatedSetId===set.id).length:cards.length;
+             const progress=set.kind==='curated'?(total?Math.round(introduced/total*100):0):safety;
+             const next=set.kind==='curated'&&set.mode==='guided'?nextGuidedLesson(set):null;
+             return '<div class="review-set-tile '+(selected===set.id?'selected':'')+'" data-review-set="'+set.id+'">'+
+              '<div class="review-set-title">'+safe(set.name)+'</div>'+
+              '<div class="review-set-due">'+setDue.length+'</div><div class="note">jetzt fällig</div>'+
+              '<div class="set-progress"><div style="width:'+progress+'%"></div></div>'+
+              '<div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':'Sicherheit Ø '+safety+'%')+'</div>'+
+              '<div class="review-set-actions"><button class="btn small review-set-learn" data-set="'+set.id+'">Fällige lernen</button>'+
+              (next?'<button class="btn small ghost review-set-new" data-set="'+set.id+'" data-lesson="'+next.id+'">+ '+next.cards.filter(x=>!curatedIntroducedIds(set).has(x.id)).length+' Neue</button>':'')+'</div></div>';
+           }).join('');
+           box.querySelectorAll('.review-set-tile').forEach(tile=>tile.onclick=e=>{if(e.target.closest('button'))return;sel.value=tile.dataset.reviewSet;refresh()});
+           box.querySelectorAll('.review-set-learn').forEach(b=>b.onclick=()=>{sel.value=b.dataset.set;startReview()});
+           box.querySelectorAll('.review-set-new').forEach(b=>b.onclick=()=>introduceGuidedLesson(b.dataset.set,b.dataset.lesson));
+          }
+          '''
+          s=s.replace(marker,fn+marker)
+          s=s.replace("renderSetSelectors();\n refreshReviewExpedition", "renderSetSelectors();\n renderReviewSetTiles();\n refreshReviewExpedition")
+          olddir="const jpProbability=state==='new'?0.70:state==='mature'?0.45:0.55;"
+          newdir="const jpProbability=state==='new'?0.45:state==='mature'?0.35:0.40; // active recall: DE→JP deliberately favored"
+          s=s.replace(olddir,newdir)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          python - <<'PY'
+          import re
+          s=open("docs/index.html").read()
+          open("/tmp/app.js","w").write("\n".join(re.findall(r'<script>(.*?)</script>',s,re.S)))
+          assert 'review-set-grid' in s and 'renderReviewSetTiles' in s
+          assert "state==='new'?0.45" in s
+          PY
+          node --check /tmp/app.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --cached --quiet || git commit -m "Polish v11.2 review tiles and active recall"
+          git push
