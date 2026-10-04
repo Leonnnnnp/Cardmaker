@@ -1,0 +1,26 @@
+name: Review checks
+on:
+  push:
+    paths: ['docs/index.html', 'docs/resources/curated-sets.js', 'tests/**', '.github/workflows/review-checks.yml']
+  pull_request:
+    paths: ['docs/index.html', 'docs/resources/curated-sets.js', 'tests/**', '.github/workflows/review-checks.yml']
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/review.test.cjs
+      - run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser-review.cjs
+        timeout-minutes: 5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: review-mobile-screenshots
+          path: test-results/*.png

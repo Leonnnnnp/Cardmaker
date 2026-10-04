@@ -14,6 +14,7 @@
 body{margin:0;background:radial-gradient(circle at 50% -10%,#3a2a5c,transparent 45%),linear-gradient(#171126,#241a3d 55%,#171126);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
 button,input,textarea{font:inherit}
 button{cursor:pointer}
+button:disabled{cursor:default;opacity:.5;box-shadow:none}
 #app{max-width:720px;margin:auto;padding:14px 14px 90px}
 .header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}
 .brand{font-weight:900;letter-spacing:.08em;color:var(--amber)}
@@ -186,20 +187,26 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 
 /* v11.2 review set tiles */
 .review-set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 18px}
-.review-set-tile{min-width:0;min-height:230px;background:var(--panel2);border:2px solid #5e5078;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.review-set-tile{min-width:0;aspect-ratio:1/1;background:var(--panel2);border:2px solid #5e5078;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
 .review-set-tile.selected{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
-.review-set-title{font-size:1.05rem;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
-.review-set-due{font-size:2rem;font-weight:900;color:var(--amber);line-height:1}
-.review-set-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
-.review-set-actions .btn{flex:1 1 110px;min-width:0;white-space:normal}
-#reviewSetFilterRow{display:none}
+.review-set-choice{border:0;background:transparent;color:var(--ink);padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;width:100%;min-height:64px}
+.review-set-choice:focus-visible{outline:2px solid var(--teal);outline-offset:5px;border-radius:3px}
+.review-set-choice[aria-pressed="true"] .review-set-title{color:var(--amber)}
+.review-set-title{font-size:1rem;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+.review-set-count{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.review-set-due{font-size:1.7rem;font-weight:900;color:var(--amber);line-height:1}
+.review-set-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.review-set-actions .btn{flex:1 1 60px;min-width:0;min-height:44px;white-space:normal;padding:6px;font-size:12px}
+.review-set-tile .set-progress{margin:3px 0;height:7px;flex-shrink:0}
 .review-status-block{clear:both;margin-top:4px;padding-top:2px}
 @media(max-width:520px){
-  .review-set-grid{grid-template-columns:1fr;gap:10px}
-  .review-set-tile{min-height:0}
-  .review-set-actions{display:grid;grid-template-columns:1fr 1fr}
-  .review-set-actions .btn{width:100%}
+  .review-set-grid{gap:8px}
+  #reviewMenu>.panel{padding:10px}
+  .review-set-tile{padding:9px}
+  .review-set-title{font-size:.9rem}
+  .review-set-tile .note{font-size:11px}
 }
+@media(max-width:339px){.review-set-grid{grid-template-columns:1fr}.review-set-tile{aspect-ratio:auto}}
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
@@ -248,15 +255,16 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
    <div class="panel">
      <div class="section-title">Heutige Expedition</div>
-     <div class="row" id="reviewSetFilterRow" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>
+     <div class="note">Wähle ein Set oder alle Karten. Neue Lerneinheiten führst du mit „+ Neue“ ein.</div>
+     <select id="reviewSetFilter" class="hidden" aria-label="Review-Set"></select>
      <div class="review-set-grid" id="reviewSetTiles"></div>
      <div class="review-status-block"><div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
      <div class="note" id="reviewNextDue" style="margin-top:5px"></div></div>
      <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
    </div>
    <div class="panel">
-     <div class="section-title">Review-Optionen</div>
-     <div class="note">Die Set-Auswahl kommt mit dem nächsten Ausbau der Wortlisten. Deine aktuelle SRS-Logik bleibt unverändert.</div>
+     <div class="section-title">Abfragerichtung</div>
+     <div class="note">Gemischte Reviews bevorzugen Deutsch → Japanisch: ungefähr 55 % bei neuen Karten, 60 % beim Lernen und Wiederlernen, 65 % bei reifen Karten. Japanisch → Deutsch bleibt regelmäßig dabei. Die Runde wird ausbalanciert statt jede Richtung einzeln auszulosen; bei kurzen Runden sind Rundungsabweichungen normal.</div>
    </div>
  </section>
 
@@ -656,6 +664,7 @@ let reviewQueue = [];
 let current = null;
 let reviewMode='srs';
 let reviewDirection='mixed';
+let reviewDirectionBalance=0;
 let currentDirection='jp-de';
 let selectedCards=new Set();
 let sessionTotal=0, sessionSeen=0;
@@ -795,34 +804,37 @@ function formatNextDue(ts,base=now()){
 }
 function renderReviewSetTiles(){
  const box=$('reviewSetTiles'),sel=$('reviewSetFilter');if(!box||!sel)return;
- const defs=setDefinitions(),due=dueCards(),selected=sel.value||'all';
+ const defs=[{id:'all',name:'Alle Karten',kind:'all'},...setDefinitions()],due=dueCards(),selected=sel.value||'all';
  box.innerHTML=defs.map(set=>{
    const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
    const total=set.kind==='curated'?(set.cards?.length||0):cards.length;
-   const introduced=set.kind==='curated'?cards.filter(c=>c.curatedSetId===set.id).length:cards.length;
+   const introduced=set.kind==='curated'?curatedIntroducedIds(set).size:cards.length;
    const progress=set.kind==='curated'?(total?Math.round(introduced/total*100):0):safety;
    const next=set.kind==='curated'&&set.mode==='guided'?nextGuidedLesson(set):null;
    return '<div class="review-set-tile '+(selected===set.id?'selected':'')+'" data-review-set="'+set.id+'">'+
-    '<div class="review-set-title">'+safe(set.name)+'</div>'+
-    '<div class="review-set-due">'+setDue.length+'</div><div class="note">jetzt fällig</div>'+
+    '<button type="button" class="review-set-choice" data-set="'+safe(set.id)+'" aria-pressed="'+(selected===set.id)+'"><span class="review-set-title">'+safe(set.name)+'</span>'+
+    '<span class="review-set-count"><span class="review-set-due">'+setDue.length+'</span><span class="note">fällig</span></span></button>'+
     '<div class="set-progress"><div style="width:'+progress+'%"></div></div>'+
-    '<div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':'Sicherheit Ø '+safety+'%')+'</div>'+
-    '<div class="review-set-actions"><button class="btn small review-set-learn" data-set="'+set.id+'">Fällige lernen</button>'+
+    '<div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':cards.length+' Karten')+'<br>Sicherheit Ø '+safety+'%</div>'+
+    '<div class="review-set-actions"><button class="btn small review-set-learn '+(setDue.length?'primary':'ghost')+'" data-set="'+safe(set.id)+'" aria-label="Fällige Karten lernen: '+safe(set.name)+'" '+(setDue.length?'':'disabled')+'>Lernen</button>'+
     (next?'<button class="btn small ghost review-set-new" data-set="'+set.id+'" data-lesson="'+next.id+'">+ '+next.cards.filter(x=>!curatedIntroducedIds(set).has(x.id)).length+' Neue</button>':'')+'</div></div>';
  }).join('');
- box.querySelectorAll('.review-set-tile').forEach(tile=>tile.onclick=e=>{if(e.target.closest('button'))return;sel.value=tile.dataset.reviewSet;refresh()});
+ box.querySelectorAll('.review-set-choice').forEach(b=>b.onclick=()=>{sel.value=b.dataset.set;refresh()});
  box.querySelectorAll('.review-set-learn').forEach(b=>b.onclick=()=>{sel.value=b.dataset.set;startReview()});
- box.querySelectorAll('.review-set-new').forEach(b=>b.onclick=()=>introduceGuidedLesson(b.dataset.set,b.dataset.lesson));
+ box.querySelectorAll('.review-set-new').forEach(b=>b.onclick=()=>{sel.value=b.dataset.set;introduceGuidedLesson(b.dataset.set,b.dataset.lesson);refresh()});
 }
 function refreshReviewExpedition(due){
  const summary=$('reviewDueSummary'), next=$('reviewNextDue');if(!summary||!next)return;
- if(!db.cards.length){summary.textContent='Noch keine Karten vorhanden.';next.textContent='Lege zuerst deine erste Karte an.';return}
- const t=now(), future=db.cards.map(c=>Number(c.due)||0).filter(x=>x>t).sort((a,b)=>a-b);
+ const setId=$('reviewSetFilter')?.value||'all',cards=cardsForSet(setId);
+ const setName=setId==='all'?'Alle Karten':(setDefinitions().find(s=>s.id===setId)?.name||'Dieses Set');
+ $('startReview').disabled=!due.length;
+ if(!cards.length){summary.textContent=setName+': Noch keine Karten vorhanden.';next.textContent=setId===USER_SET_ID?'Füge deine erste eigene Karte hinzu.':'Führe eine neue Lerneinheit ein oder wähle ein anderes Set.';return}
+ const t=now(), future=cards.map(c=>Number(c.due)||0).filter(x=>x>t).sort((a,b)=>a-b);
  if(due.length){
-   summary.textContent='⚔️ '+due.length+' Karte'+(due.length===1?' ist':'n sind')+' jetzt fällig.';
+   summary.textContent=setName+': '+due.length+' Karte'+(due.length===1?' ist':'n sind')+' jetzt fällig.';
    next.textContent=future.length?'Nächster späterer Termin: '+formatNextDue(future[0],t)+'.':'';
  }else{
-   summary.textContent='✓ Für jetzt bist du fertig!';
+   summary.textContent=setName+': ✓ Für jetzt bist du fertig!';
    next.textContent=future.length?'Nächste Review: '+formatNextDue(future[0],t)+'.':'Aktuell ist kein weiterer Review-Termin vorhanden.';
  }
 }
@@ -847,13 +859,14 @@ function refresh(){
  renderList();
 }
 function showScreen(id){
+ if(id==='reviewMenu')refresh();
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  $(id).classList.add('active');
  document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('primary',b.dataset.screen===id));
  $('addFab').classList.toggle('hidden',id==='review'||id==='adventure');
 }
 document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
-$('reviewSetFilter').addEventListener('change',()=>refreshReviewExpedition(cardsForSet($('reviewSetFilter').value,dueCards())));
+$('reviewSetFilter').addEventListener('change',()=>refresh());
 
 
 function safe(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1929,6 +1942,7 @@ function startReview(){
    return pr(a)-pr(b) || (a.due||0)-(b.due||0);
  });
  if(!reviewQueue.length){alert('Gerade ist keine Karte fällig. Nutze „Freies Training“, wenn du trotzdem üben möchtest.');return}
+ resetReviewDirectionBalance();
  sessionTotal=reviewQueue.length;sessionSeen=0;
  resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
 }
@@ -1939,6 +1953,7 @@ function startTraining(cards,direction=null){
  if(!unique.length){alert('Für diese Auswahl gibt es keine Karten.');return;}
  reviewMode='training';
  reviewDirection=direction || $('trainingDirection')?.value || 'mixed';
+ resetReviewDirectionBalance();
  reviewQueue=[...unique].sort(()=>Math.random()-.5);
  sessionTotal=reviewQueue.length;sessionSeen=0;
  resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
@@ -2337,11 +2352,21 @@ function renderAdventureHomeStats(){
  box.textContent='Abenteuer: '+a.wins+'/'+a.runs+' Läufe gewonnen · beste Kombo '+a.bestCombo+' · '+known+' Wörter mit Kampfstatistik';
 }
 
+function mixedReviewJPProbability(card){
+ const state=cardStatus(card);
+ return state==='new'?0.45:state==='mature'?0.35:0.40;
+}
+function resetReviewDirectionBalance(){
+ // A random starting offset, then systematic allocation: cumulative error < one card.
+ // Session-only state; never persisted on cards or in their SRS history.
+ reviewDirectionBalance=Math.random();
+}
 function chooseReviewDirection(card){
  if(reviewDirection==='jp-de' || reviewDirection==='de-jp') return reviewDirection;
- const state=cardStatus(card);
- const jpProbability=state==='new'?0.45:state==='mature'?0.35:0.40; // active recall: DE→JP deliberately favored
- return Math.random()<jpProbability?'jp-de':'de-jp';
+ const jpProbability=mixedReviewJPProbability(card);
+ reviewDirectionBalance+=jpProbability;
+ if(reviewDirectionBalance>=1-1e-10){reviewDirectionBalance=Math.max(0,reviewDirectionBalance-1);return 'jp-de'}
+ return 'de-jp';
 }
 function renderReviewCard(card){
  currentDirection=chooseReviewDirection(card);
