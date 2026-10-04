@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Kotodama SRS – Prototyp v11.1</title>
+<title>Kotodama SRS – Prototyp v11.2</title>
 <style>
 :root{
  --bg:#171126;--panel:#2b2146;--panel2:#211934;--ink:#f0e4c9;--paper:#efe3c8;
@@ -183,6 +183,24 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .mode-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}.mode-head h2{margin:0}.settings-section{padding:12px 0;border-top:1px solid rgba(255,255,255,.1)}.settings-section:first-of-type{border-top:0}
 @media(max-width:620px){.main-menu{grid-template-columns:1fr}.header{align-items:flex-start}.header-cloud{max-width:48%}.header-cloud .cloud-email{display:none}}
 @media(max-width:520px){.rating{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}}
+
+/* v11.2 review set tiles */
+.review-set-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+.review-set-tile{min-width:0;min-height:230px;background:var(--panel2);border:2px solid #5e5078;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.review-set-tile.selected{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
+.review-set-title{font-size:1.05rem;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+.review-set-due{font-size:2rem;font-weight:900;color:var(--amber);line-height:1}
+.review-set-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+.review-set-actions .btn{flex:1 1 110px;min-width:0;white-space:normal}
+#reviewSetFilterRow{display:none}
+.review-status-block{clear:both;margin-top:4px;padding-top:2px}
+@media(max-width:520px){
+  .review-set-grid{grid-template-columns:1fr;gap:10px}
+  .review-set-tile{min-height:0}
+  .review-set-actions{display:grid;grid-template-columns:1fr 1fr}
+  .review-set-actions .btn{width:100%}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
 <script src="./resources/curated-sets.js"></script>
@@ -190,7 +208,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 <body>
 <div id="app">
  <div class="header">
-   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v11.1</div></div>
+   <div><div class="brand">言霊 KOTODAMA SRS</div><div class="sub">Offline-first Lernprototyp v11.2</div></div>
    <div class="header-cloud">
      <div class="cloud-status"><span id="cloudDot" class="cloud-dot"></span><span id="cloudStatus">Nur lokal gespeichert</span></div>
      <div id="cloudEmail" class="cloud-email"></div>
@@ -230,9 +248,10 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
    <div class="panel">
      <div class="section-title">Heutige Expedition</div>
-     <div class="row" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>
-     <div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
-     <div class="note" id="reviewNextDue" style="margin-top:5px"></div>
+     <div class="row" id="reviewSetFilterRow" style="margin:8px 0"><span class="note">Set:</span><select id="reviewSetFilter" class="set-select"></select></div>
+     <div class="review-set-grid" id="reviewSetTiles"></div>
+     <div class="review-status-block"><div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
+     <div class="note" id="reviewNextDue" style="margin-top:5px"></div></div>
      <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
    </div>
    <div class="panel">
@@ -774,6 +793,27 @@ function formatNextDue(ts,base=now()){
  if(sameDay(d,tomorrow))return 'morgen um '+time+' Uhr';
  return 'am '+d.toLocaleDateString('de-DE',{day:'numeric',month:'long'})+' um '+time+' Uhr';
 }
+function renderReviewSetTiles(){
+ const box=$('reviewSetTiles'),sel=$('reviewSetFilter');if(!box||!sel)return;
+ const defs=setDefinitions(),due=dueCards(),selected=sel.value||'all';
+ box.innerHTML=defs.map(set=>{
+   const cards=cardsForSet(set.id),setDue=cardsForSet(set.id,due),safety=setSafetyScore(cards);
+   const total=set.kind==='curated'?(set.cards?.length||0):cards.length;
+   const introduced=set.kind==='curated'?cards.filter(c=>c.curatedSetId===set.id).length:cards.length;
+   const progress=set.kind==='curated'?(total?Math.round(introduced/total*100):0):safety;
+   const next=set.kind==='curated'&&set.mode==='guided'?nextGuidedLesson(set):null;
+   return '<div class="review-set-tile '+(selected===set.id?'selected':'')+'" data-review-set="'+set.id+'">'+
+    '<div class="review-set-title">'+safe(set.name)+'</div>'+
+    '<div class="review-set-due">'+setDue.length+'</div><div class="note">jetzt fällig</div>'+
+    '<div class="set-progress"><div style="width:'+progress+'%"></div></div>'+
+    '<div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':'Sicherheit Ø '+safety+'%')+'</div>'+
+    '<div class="review-set-actions"><button class="btn small review-set-learn" data-set="'+set.id+'">Fällige lernen</button>'+
+    (next?'<button class="btn small ghost review-set-new" data-set="'+set.id+'" data-lesson="'+next.id+'">+ '+next.cards.filter(x=>!curatedIntroducedIds(set).has(x.id)).length+' Neue</button>':'')+'</div></div>';
+ }).join('');
+ box.querySelectorAll('.review-set-tile').forEach(tile=>tile.onclick=e=>{if(e.target.closest('button'))return;sel.value=tile.dataset.reviewSet;refresh()});
+ box.querySelectorAll('.review-set-learn').forEach(b=>b.onclick=()=>{sel.value=b.dataset.set;startReview()});
+ box.querySelectorAll('.review-set-new').forEach(b=>b.onclick=()=>introduceGuidedLesson(b.dataset.set,b.dataset.lesson));
+}
 function refreshReviewExpedition(due){
  const summary=$('reviewDueSummary'), next=$('reviewNextDue');if(!summary||!next)return;
  if(!db.cards.length){summary.textContent='Noch keine Karten vorhanden.';next.textContent='Lege zuerst deine erste Karte an.';return}
@@ -800,6 +840,7 @@ function refresh(){
    ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
    : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
  renderSetSelectors();
+ renderReviewSetTiles();
  refreshReviewExpedition(cardsForSet($('reviewSetFilter')?.value||'all',due));
 
  renderSetLibrary();
@@ -2299,7 +2340,7 @@ function renderAdventureHomeStats(){
 function chooseReviewDirection(card){
  if(reviewDirection==='jp-de' || reviewDirection==='de-jp') return reviewDirection;
  const state=cardStatus(card);
- const jpProbability=state==='new'?0.70:state==='mature'?0.45:0.55;
+ const jpProbability=state==='new'?0.45:state==='mature'?0.35:0.40; // active recall: DE→JP deliberately favored
  return Math.random()<jpProbability?'jp-de':'de-jp';
 }
 function renderReviewCard(card){
