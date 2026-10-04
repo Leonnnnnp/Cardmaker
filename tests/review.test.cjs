@@ -34,12 +34,12 @@ function fixture(cards = []) {
   Object.assign(context, {
     $: id => nodes[id], db: {cards, meta: {sets: {}}}, USER_SET_ID: 'my-cards',
     CURATED_SETS: context.window.KOTODAMA_CURATED_SETS, now: () => 1000000,
-    V5_DAY: 86400000, V5_MIN: 60000, reviewDirection: 'mixed',
+    V5_DAY: 86400000, V5_MIN: 60000, reviewDirection: 'mixed', reviewDirectionBalance: 0,
     confirm: () => true, startReview: () => {context.started = nodes.reviewSetFilter.value;},
     refresh: () => {context.renderReviewSetTiles(); context.refreshReviewExpedition(context.cardsForSet(nodes.reviewSetFilter.value, context.dueCards()));},
     save: () => context.refresh()
   });
-  for (const name of ['safe', 'uid', 'setDefinitions', 'ensureCardSets', 'ensureCardV5', 'cardStatus', 'cardsForSet', 'setSafetyScore', 'curatedIntroducedIds', 'lessonState', 'nextGuidedLesson', 'introduceGuidedLesson', 'dueCards', 'formatNextDue', 'renderReviewSetTiles', 'refreshReviewExpedition', 'mixedReviewJPProbability', 'chooseReviewDirection']) {
+  for (const name of ['safe', 'uid', 'setDefinitions', 'ensureCardSets', 'ensureCardV5', 'cardStatus', 'cardsForSet', 'setSafetyScore', 'curatedIntroducedIds', 'lessonState', 'nextGuidedLesson', 'introduceGuidedLesson', 'dueCards', 'formatNextDue', 'renderReviewSetTiles', 'refreshReviewExpedition', 'mixedReviewJPProbability', 'resetReviewDirectionBalance', 'chooseReviewDirection']) {
     vm.runInContext(functionSource(name), context);
   }
   nodes.reviewSetFilter.value = 'all';
@@ -110,21 +110,42 @@ test('introducing a lesson selects the set, creates due cards once, and updates 
   assert.equal(context.db.cards.length, 3, 'no duplicate templates');
 });
 
-test('mixed direction favors DE to JP with exact thresholds for each learning state', () => {
+test('mixed sessions meet weighting targets without one-sided clusters', () => {
   const {context} = fixture();
   for (const [state, jpProbability] of [['new', .45], ['learning', .40], ['relearning', .40], ['mature', .35]]) {
     const c = card(state, 'my-cards', 1, state);
     assert.equal(context.mixedReviewJPProbability(c), jpProbability);
-    context.Math.random = () => jpProbability - .000001;
-    assert.equal(context.chooseReviewDirection(c), 'jp-de');
-    context.Math.random = () => jpProbability;
-    assert.equal(context.chooseReviewDirection(c), 'de-jp');
-    let jpCount = 0;
-    for (let i = 0; i < 1000; i++) {
-      context.Math.random = () => (i + .5) / 1000;
-      if (context.chooseReviewDirection(c) === 'jp-de') jpCount++;
+    for (const offset of [0, .1, .5, .9999]) {
+      context.Math.random = () => offset;
+      context.resetReviewDirectionBalance();
+      let jpCount = 0, last = '', streak = 0;
+      for (let i = 0; i < 1000; i++) {
+        const direction = context.chooseReviewDirection(c);
+        if (direction === 'jp-de') jpCount++;
+        streak = direction === last ? streak + 1 : 1;
+        last = direction;
+        assert.ok(streak <= 2, 'no long same-direction runs');
+        assert.ok(Math.abs(jpCount - (i + 1) * jpProbability) < 1 + 1e-9);
+      }
+      assert.equal(jpCount, jpProbability * 1000);
     }
-    assert.equal(jpCount, jpProbability * 1000);
+  }
+});
+
+test('mixed learning states stay balanced and direction selection leaves SRS intact', () => {
+  const {context} = fixture();
+  context.Math.random = () => .7;
+  context.resetReviewDirectionBalance();
+  let expected = 0, jpCount = 0;
+  for (let i = 0; i < 400; i++) {
+    const state = ['new', 'learning', 'relearning', 'mature'][i % 4];
+    const c = card(String(i), 'my-cards', 123456, state);
+    context.ensureCardV5(c);
+    const before = JSON.stringify(c);
+    expected += context.mixedReviewJPProbability(c);
+    if (context.chooseReviewDirection(c) === 'jp-de') jpCount++;
+    assert.ok(Math.abs(jpCount - expected) < 1 + 1e-9);
+    assert.equal(JSON.stringify(c), before);
   }
 });
 
