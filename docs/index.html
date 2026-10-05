@@ -46,6 +46,8 @@ textarea{resize:vertical;min-height:72px;white-space:pre-wrap}
 .preview{margin-top:12px;background:#fbf2df;padding:12px;border:1px dashed #9a8050;border-radius:6px}
 .preview .jp{font-size:25px;white-space:pre-wrap}.preview ruby rt{font-size:12px;color:#6f5835}
 .note{font-size:12px;color:var(--muted)}
+#learningExportModal .note{color:#6d5734}
+#learningExportText{min-height:250px;height:42vh;font-size:12px}
 .battle{position:relative;overflow:hidden;min-height:230px;background:radial-gradient(circle at 50% 20%,#4b3968,transparent 55%),linear-gradient(#2a2048,#110d20);border:3px solid var(--frame);border-radius:6px;padding:10px}
 .arena{display:flex;justify-content:space-between;align-items:flex-end;min-height:160px}
 canvas{image-rendering:pixelated}
@@ -211,6 +213,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
 <script src="./resources/curated-sets.js"></script>
+<script src="./resources/learning-export.js"></script>
 </head>
 <body>
 <div id="app">
@@ -248,6 +251,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <button class="btn menu-card" data-screen="adventureMenu"><strong>🗺️ Abenteuer</strong><span>Vokabelkampf mit Texteingabe und Bossen</span></button>
      <button class="btn menu-card" data-screen="sets"><strong>📚 Sets</strong><span>Meine Karten und kuratierte Wortfelder</span></button>
      <button class="btn menu-card" id="gameSettingsBtn"><strong>⚙️ Spieleinstellungen</strong><span>Lesung, Sound, Daten und Wörterbücher</span></button>
+     <button class="btn menu-card" id="learningExportBtn"><strong>📋 Lernstand teilen</strong><span>Vokabeltabelle für deine Grammatikübungen kopieren</span></button>
    </div>
  </section>
 
@@ -463,6 +467,17 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <button class="btn" id="saveNext">Speichern + nächste</button>
      <button class="btn ghost" id="cancelEditor">Abbrechen</button>
    </div>
+ </div>
+</div>
+
+<div class="modal" id="learningExportModal" role="dialog" aria-modal="true" aria-labelledby="learningExportTitle">
+ <div class="paper modal-card">
+   <h3 id="learningExportTitle" style="margin-top:0">📋 Mein Vokabelstand</h3>
+   <div class="note">Die Tabelle enthält alle Karten des aktuellen Spielstands auf diesem Gerät. Kopiere sie und füge sie in deinen Grammatik-Chat ein.</div>
+   <label for="learningExportText">Kopierbare Tabelle</label>
+   <textarea id="learningExportText" readonly spellcheck="false"></textarea>
+   <div class="row" style="margin-top:10px"><button class="btn primary" id="copyLearningExport">Tabelle kopieren</button><button class="btn" id="learningExportClose">Fertig</button></div>
+   <div id="learningExportStatus" class="note" role="status" aria-live="polite" style="margin-top:8px"></div>
  </div>
 </div>
 
@@ -2419,6 +2434,26 @@ function saveGameSetting(key,value){
 }
 $('gameSettingsBtn').onclick=()=>{syncReadingPreferenceUI();$('gameSettingsModal').classList.add('show')};
 $('gameSettingsClose').onclick=()=>$('gameSettingsModal').classList.remove('show');
+function refreshLearningExport(){
+ $('learningExportText').value=KotodamaLearningExport.build(db);
+}
+$('learningExportBtn').onclick=()=>{
+ refreshLearningExport();$('learningExportStatus').textContent='';
+ $('learningExportModal').classList.add('show');$('copyLearningExport').focus();
+};
+$('learningExportClose').onclick=()=>{
+ $('learningExportModal').classList.remove('show');$('learningExportBtn').focus();
+};
+$('copyLearningExport').onclick=async()=>{
+ refreshLearningExport();
+ try{
+  await navigator.clipboard.writeText($('learningExportText').value);
+  $('learningExportStatus').textContent='Kopiert! Du kannst die Tabelle jetzt in deinen Grammatik-Chat einfügen.';
+ }catch(e){
+  const field=$('learningExportText');field.focus();field.select();field.setSelectionRange(0,field.value.length);
+  $('learningExportStatus').textContent='Automatisches Kopieren ist hier nicht verfügbar. Der Text ist markiert: Nutze „Kopieren“ oder Strg/Cmd+C.';
+ }
+};
 $('showReadingByDefault').onchange=e=>saveGameSetting('showReadingByDefault',e.target.checked);
 $('soundEnabled').onchange=e=>saveGameSetting('soundEnabled',e.target.checked);
 $('correctSoundEnabled').onchange=e=>{saveGameSetting('correctSoundEnabled',e.target.checked);if(e.target.checked&&db.meta.soundEnabled!==false){AdvAudio.unlock();AdvAudio.correct()}};
