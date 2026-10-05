@@ -8,7 +8,7 @@ async function main() {
   const root = path.resolve(__dirname, '../docs');
   const server = http.createServer((req, res) => {
     const name = req.url.split('?')[0];
-    const allowed = {'/': 'index.html', '/resources/curated-sets.js': 'resources/curated-sets.js'};
+    const allowed = {'/': 'index.html', '/resources/curated-sets.js': 'resources/curated-sets.js', '/resources/learning-export.js': 'resources/learning-export.js'};
     if (!allowed[name]) {res.writeHead(404); return res.end();}
     res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'text/html');
     res.end(fs.readFileSync(path.join(root, allowed[name])));
@@ -26,11 +26,27 @@ async function main() {
       const context = await browser.newContext({viewport: {width, height: 900}});
       await context.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.abort());
       await context.addInitScript(data => localStorage.setItem('kotodama_srs_proto_v1', JSON.stringify(data)), seed);
+      await context.addInitScript(fail => Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{if(fail)throw new Error('Clipboard unavailable');window.testCopiedText=text;}}}),width===320);
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(origin);
       const before = await srsSnapshot(page);
+      const beforeExport = await page.evaluate(()=>JSON.stringify(db));
+      await page.locator('#learningExportBtn').click();
+      assert.match(await page.locator('#learningExportText').inputValue(),/\| 猫 \| ねこ \| Katze \|/);
+      await page.locator('#copyLearningExport').click();
+      if(width===320){
+        assert.match(await page.locator('#learningExportStatus').innerText(),/Text ist markiert/);
+        assert.ok(await page.locator('#learningExportText').evaluate(el=>el.selectionEnd-el.selectionStart===el.value.length));
+      }else{
+        assert.match(await page.locator('#learningExportStatus').innerText(),/Kopiert!/);
+        assert.equal(await page.evaluate(()=>window.testCopiedText),await page.locator('#learningExportText').inputValue());
+      }
+      assert.equal(await page.evaluate(()=>JSON.stringify(db)),beforeExport,'export leaves entire save unchanged');
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:'test-results/export-'+width+'.png',fullPage:true});
+      await page.locator('#learningExportClose').click();
       await page.locator('[data-screen="reviewMenu"]').click();
       assert.equal(await page.locator('#reviewSetTiles').count(), 1);
       assert.equal(await page.locator('.review-set-tile').count(), 3);
@@ -56,6 +72,9 @@ async function main() {
       assert.equal(await page.locator('#reviewSetFilter').inputValue(), 'nuances-daily');
       assert.deepEqual(await srsSnapshot(page), before, 'lesson introduction preserves existing cards');
       await page.locator('#reviewMenu [data-screen="home"]').click();
+      await page.locator('#learningExportBtn').click();
+      assert.match(await page.locator('#learningExportText').inputValue(),/5 Karten/,'reopening reflects newly introduced cards');
+      await page.locator('#learningExportClose').click();
       await page.locator('[data-screen="trainingMenu"]').click();
       await page.locator('#trainingSetFilter').selectOption('my-cards');
       await page.locator('#trainAllBtn').click();
