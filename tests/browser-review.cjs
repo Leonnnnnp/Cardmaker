@@ -82,8 +82,9 @@ async function main() {
       const trainingFinished = page.waitForEvent('dialog');
       await page.locator('[data-rate="good"]').click();
       await (await trainingFinished).dismiss();
-      await page.locator('#home').waitFor({state: 'visible'});
+      await page.locator('#reviewMenu').waitFor({state: 'visible'});
       assert.deepEqual(await srsSnapshot(page), before, 'training ratings preserve SRS');
+      await page.locator('#reviewMenu [data-screen="home"]').click();
       await page.locator('[data-screen="adventureMenu"]').click();
       await page.locator('#adventureSetFilter').selectOption('my-cards');
       await page.locator('#adventureDirection').selectOption('jp-de');
