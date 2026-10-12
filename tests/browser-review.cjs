@@ -91,6 +91,57 @@ async function main() {
       await page.locator('#advInput').fill('Katze');
       await page.locator('#advSubmit').click();
       assert.deepEqual(await srsSnapshot(page), before, 'adventure answers preserve SRS');
+      assert.match(await page.locator('#advSrsStatus').innerText(), /SRS bleibt unverändert/);
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#leaveAdventure').click();
+      await page.locator('[data-screen="adventureMenu"]').click();
+      assert.equal(await page.locator('#adventureUpdateSrs').isChecked(), false);
+      await page.locator('#adventureUpdateSrs').check();
+      await page.locator('#adventureDirection').selectOption('de-jp');
+      await page.locator('#startAdventure').click();
+      await page.locator('#advInput').fill('neko');
+      await page.locator('#advSubmit').click();
+      let updated = await srsSnapshot(page);
+      assert.equal(updated[0].reps, before[0].reps + 1);
+      assert.equal(updated[0].history.at(-1).rating, 'good');
+      assert.deepEqual(updated[1], before[1], 'other set untouched');
+      assert.match(await page.locator('#advFeedback').innerText(), /SRS: Good/);
+      await page.locator('#advSubmit').evaluate(el => el.click());
+      assert.deepEqual(await srsSnapshot(page), updated, 'double submission cannot reschedule');
+      await page.locator('#advNext').click();
+      await page.locator('#advInput').fill('neko');
+      await page.locator('#advSubmit').click();
+      assert.deepEqual(await srsSnapshot(page), updated, 'repeat successes do not reschedule');
+      await page.locator('#advNext').click();
+      await page.evaluate(() => {db.cards = structuredClone(db.cards); rebindActiveCardRefs();});
+      await page.locator('#advInput').fill('falsch');
+      await page.locator('#advSubmit').click();
+      updated = await srsSnapshot(page);
+      assert.equal(updated[0].history.at(-1).rating, 'again');
+      assert.equal(updated[0].reps, before[0].reps + 2);
+      assert.ok(Math.abs(updated[0].due - Date.now() - 600000) < 5000);
+      assert.deepEqual(updated[1], before[1]);
+      await page.locator('#advNext').click();
+      await page.locator('#advInput').fill('neko');
+      await page.locator('#advSubmit').click();
+      assert.deepEqual(await srsSnapshot(page), updated, 'correct repetition cannot erase Again');
+      assert.match(await page.locator('#advSrsStatus').innerText(), /1 Karte bewertet/);
+      await page.screenshot({path: 'test-results/adventure-srs-' + width + '.png', fullPage: true});
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      // A new run captures its own mode and resets per-run ratings.
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#leaveAdventure').click();
+      await page.locator('[data-screen="adventureMenu"]').click();
+      await page.locator('#adventureDirection').selectOption('jp-de');
+      await page.locator('#startAdventure').click();
+      await page.evaluate(() => {ensureAdventureMeta().inventory.hint = 1;});
+      await page.locator('[data-adv-item="hint"]').click();
+      await page.locator('#advInput').fill('Katze');
+      await page.locator('#advSubmit').click();
+      updated = await srsSnapshot(page);
+      assert.equal(updated[0].history.at(-1).rating, 'hard');
+      const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('kotodama_srs_proto_v1')).cards.find(c => c.id === 'own'));
+      assert.equal(persisted.history.at(-1).rating, 'hard');
       assert.deepEqual(errors, [], 'no runtime errors at ' + width);
       console.log('Browser checks passed at ' + width + 'px: layout, set actions, SRS invariants, training, adventure');
       await context.close();
@@ -101,3 +152,4 @@ async function main() {
   }
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});
+

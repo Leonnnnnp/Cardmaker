@@ -294,7 +294,9 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
  <section id="adventureMenu" class="screen">
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>🗺️ 冒険（ぼうけん）– Abenteuer</h2></div>
    <div class="panel adventure-panel">
-     <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Er nutzt deine Karten, verändert aber niemals das SRS.</div>
+     <div class="note">RPG-Modus mit Texteingabe, Zeit-Kombos, Items, Elitegegnern und Bossen. Du entscheidest, ob deine Antworten auch den Lernstand aktualisieren.</div>
+     <label class="train-check" style="margin-top:12px"><input type="checkbox" id="adventureUpdateSrs" aria-describedby="adventureSrsHelp"> Lernstand aktualisieren (SRS)</label>
+     <div class="note" id="adventureSrsHelp" style="margin-top:5px">Aus: nur Kampfstatistik. An: richtig → Good, richtig mit Hinweis → Hard, falsch → Again (in 10 Minuten). Auch noch nicht fällige Karten werden bewertet. Pro Karte zählt im Lauf eine erfolgreiche Bewertung; spätere schlechtere Antworten korrigieren sie. Tempo zählt nur im Kampf.</div>
      <div class="row" style="margin-top:12px">
        <select id="adventureSetFilter" class="set-select"></select>
        <select id="adventureDirection"><option value="mixed">Gemischt</option><option value="jp-de">Japanisch → Deutsch</option><option value="de-jp">Deutsch → Japanisch (Romaji)</option></select>
@@ -344,6 +346,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <button class="btn small ghost" id="advSoundBtn">🔊</button>
    </div>
    <div class="adv-title" id="advEnemyName">Gegner</div>
+   <div class="note" id="advSrsStatus" role="status" style="margin-bottom:7px"></div>
    <div class="adv-stage" id="advStage">
      <div class="adv-arena">
        <div class="adv-sprite" id="advHeroWrap"><canvas id="advHero" width="288" height="252"></canvas></div>
@@ -595,6 +598,11 @@ function rebindActiveCardRefs(){
  if(Array.isArray(reviewQueue)){
    reviewQueue=reviewQueue.map(c=>c?.id?(byId.get(c.id)||c):c);
  }
+ if(advState){
+   if(advState.current?.id) advState.current=byId.get(advState.current.id)||advState.current;
+   if(Array.isArray(advState.deck)) advState.deck=advState.deck.map(c=>byId.get(c.id)||c);
+ }
+ if(Array.isArray(advCardPool)) advCardPool=advCardPool.map(c=>byId.get(c.id)||c);
 }
 function queueCloudSync(){
  if(!cloudUser || !cloudClient || cloudBusy) return;
@@ -2198,6 +2206,9 @@ function advUpdateUI(){
  const inv=ensureAdventureMeta().inventory;
  for(const k of ['heal','shield','invis','hint','hourglass','phoenix']){const el=$('advItem'+k[0].toUpperCase()+k.slice(1));if(el)el.textContent=inv[k]||0}
  $('advRunInfo').textContent='Kampf '+(s.encounterIndex+1)+'/4 · '+(s.kind==='boss'?'BOSS':s.kind==='elite'?'ELITE':'NORMAL');
+ $('advSrsStatus').textContent=s.updateSrs
+   ? '📚 Lernstand wird aktualisiert · '+s.srsRatings.size+' Karte'+(s.srsRatings.size===1?'':'n')+' bewertet'
+   : '🎮 Freies Abenteuer · SRS bleibt unverändert';
 }
 function advStartTimer(){
  clearTimeout(advTimerHandle);
@@ -2229,7 +2240,7 @@ function advStart(){
  const cards=advCardPool;
  if(!cards.length){alert('Du brauchst mindestens eine Karte für ein Abenteuer.');return}
  ensureAdventureMeta().runs++;
- advState={direction:$('adventureDirection')?.value||'mixed',encounterIndex:0,kind:'normal',heroHp:180,heroHpMax:180,enemyHp:100,enemyHpMax:100,
+ advState={direction:$('adventureDirection')?.value||'mixed',updateSrs:!!$('adventureUpdateSrs')?.checked,srsRatings:new Map(),hintUsed:false,encounterIndex:0,kind:'normal',heroHp:180,heroHpMax:180,enemyHp:100,enemyHpMax:100,
  combo:0,speedCombo:0,bestCombo:0,shieldTurns:0,invisTurns:0,hourglassTurns:0,awaiting:false,current:null,currentDirection:'jp-de'};
  save();
  showScreen('adventure');advBeginEncounter(0);
@@ -2257,7 +2268,8 @@ function advNextQuestion(){
  if(s.deckPos>=s.deck.length){
    s.deck=buildAdventureDeck(s.kind,Math.max(4,s.kind==='boss'?8:6));s.deckPos=0;
  }
- s.current=s.deck[s.deckPos++];s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;
+ s.current=s.deck[s.deckPos++];s.current=db.cards.find(c=>c.id===s.current.id)||s.current;
+ s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;s.hintUsed=false;
  $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advFeedback').style.fontSize='';$('advPrompt').style.fontSize='';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
  if(s.currentDirection==='jp-de'){
    $('advDirectionTag').textContent='日本語 → DEUTSCH';
@@ -2292,6 +2304,22 @@ function advEnemyAttack(base){
    if((inv.phoenix||0)>0){inv.phoenix--;s.heroHp=Math.round(s.heroHpMax*.35);$('advFeedback').textContent+=' 🪶 Die Phönixfeder rettet dich!';advDrawHero('idle',true,6);save();}
  }
  advUpdateUI();
+}
+function advApplySrsAnswer(correct){
+ const s=advState;
+ if(!s?.updateSrs||!s.current)return '';
+ const card=db.cards.find(c=>c.id===s.current.id);
+ if(!card)return 'SRS: Karte nicht mehr im Speicherstand; keine Änderung.';
+ s.current=card;
+ const rating=correct?(s.hintUsed?'hard':'good'):'again';
+ const priority={again:0,hard:1,good:2},previous=s.srsRatings.get(card.id);
+ if(previous && priority[previous]<=priority[rating]){
+   return 'SRS: '+{again:'Again',hard:'Hard',good:'Good'}[previous]+' bleibt bestehen (in diesem Lauf bereits bewertet).';
+ }
+ // Repeat successes must not inflate intervals. A later failure may still correct them.
+ schedule(card,rating);
+ s.srsRatings.set(card.id,rating);
+ return 'SRS: '+{again:'Again',hard:'Hard',good:'Good'}[rating]+' · nächste Review '+formatNextDue(card.due)+'.';
 }
 function advSubmitAnswer(){
  const s=advState;if(!s||s.awaiting||!s.current)return;
@@ -2329,6 +2357,11 @@ function advSubmitAnswer(){
    advSetFeedback(safe(badPrefix)+'<br><b>Lösung:</b> '+safe(answer).replace(/\n/g,' · '),badPrefix+' Lösung: '+answer,'wrong');
    setTimeout(()=>advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15),180);
  }
+ const srsFeedback=advApplySrsAnswer(correct);
+ if(srsFeedback){
+   const feedback=$('advFeedback');feedback.innerHTML+='<br>'+safe(srsFeedback);
+   advFitText(feedback,feedback.textContent,'feedback');
+ }
  const a=ensureAdventureMeta();a.bestCombo=Math.max(a.bestCombo||0,s.bestCombo||0);save();advUpdateUI();
 }
 function advDropItem(kind){
@@ -2359,6 +2392,7 @@ function advUseItem(key){
  if(key==='hourglass')s.hourglassTurns+=5;
  if(key==='hint'){
    if(!s.current)return;
+   s.hintUsed=true;
    const ans=s.currentDirection==='jp-de'?(adventureGermanAnswers(s.current)[0]||''):(adventureRomajiAnswers(s.current)[0]||'');
    $('advHint').textContent='📜 Hinweis: '+ans.slice(0,Math.max(1,Math.ceil(ans.length*.4)))+'…';
  }
@@ -2670,3 +2704,4 @@ initCloud();
 </script>
 </body>
 </html>
+
