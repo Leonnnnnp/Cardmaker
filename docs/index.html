@@ -683,6 +683,7 @@ let reviewDirectionBalance=0;
 let currentDirection='jp-de';
 let selectedCards=new Set();
 let sessionTotal=0, sessionSeen=0;
+let sessionAnswered=new Set(), sessionStartDue=0, sessionSetId='all';
 let enemyHp=100, enemyMaxHp=100, heroHp=180, heroMaxHp=180;
 let wave=1, combo=0, potionCount=2, guardCount=1, focusCount=1;
 let guardActive=false, focusActive=false;
@@ -849,7 +850,8 @@ function refreshReviewExpedition(due){
    summary.textContent=setName+': '+due.length+' Karte'+(due.length===1?' ist':'n sind')+' jetzt fällig.';
    next.textContent=future.length?'Nächster späterer Termin: '+formatNextDue(future[0],t)+'.':'';
  }else{
-   summary.textContent=setName+': ✓ Für jetzt bist du fertig!';
+   const globalRemaining=dueCards().length;
+    summary.textContent=setName+': ✓ Hier ist aktuell nichts fällig.'+(setId!=='all'&&globalRemaining?' Insgesamt warten noch '+globalRemaining+' fällige Karten.':'');
    next.textContent=future.length?'Nächste Review: '+formatNextDue(future[0],t)+'.':'Aktuell ist kein weiterer Review-Termin vorhanden.';
  }
 }
@@ -1959,6 +1961,7 @@ function startReview(){
  if(!reviewQueue.length){alert('Gerade ist keine Karte fällig. Nutze „Freies Training“, wenn du trotzdem üben möchtest.');return}
  resetReviewDirectionBalance();
  sessionTotal=reviewQueue.length;sessionSeen=0;
+ sessionStartDue=sessionTotal;sessionSetId=$('reviewSetFilter')?.value||'all';sessionAnswered=new Set();
  resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
 }
 $('startReview').onclick=startReview;
@@ -1971,6 +1974,7 @@ function startTraining(cards,direction=null){
  resetReviewDirectionBalance();
  reviewQueue=[...unique].sort(()=>Math.random()-.5);
  sessionTotal=reviewQueue.length;sessionSeen=0;
+ sessionStartDue=0;sessionSetId='all';sessionAnswered=new Set();
  resetCombatSession(sessionTotal);idle();showScreen('review');nextCard();
 }
 $('startCustomTraining').onclick=()=>{
@@ -2404,17 +2408,26 @@ function renderReviewCard(card){
  return dirLabel;
 }
 function nextCard(){
- if(heroHp<=0){
+ if(heroHp<=0 && reviewMode==='training'){
    alert('Du bist erschöpft. Die restlichen Karten bleiben für später erhalten.');
    showScreen('home');refresh();return;
  }
  if(!reviewQueue.length){
-   alert(reviewMode==='srs'?'Review abgeschlossen!':'Training abgeschlossen!');
-   showScreen('home');refresh();return;
+   if(reviewMode==='srs'){
+    const remainingInSet=cardsForSet(sessionSetId,dueCards()).length, remainingGlobal=dueCards().length;
+    const selectedLabel=sessionSetId==='all'?'Alle Karten':(setDefinitions().find(x=>x.id===sessionSetId)?.name||'Ausgewähltes Set');
+    alert('Review beendet ('+selectedLabel+').\nBeim Start fällig: '+sessionStartDue+
+      '\nBeantwortete Karten: '+sessionAnswered.size+
+      '\nIn der Runde übrig: 0'+
+      '\nIm gewählten Set weiterhin fällig: '+remainingInSet+
+      '\nInsgesamt noch fällig: '+remainingGlobal+
+      (remainingGlobal?'\nWeitere Karten sind noch fällig.':'\nAktuell keine weiteren Karten fällig.'));
+   }else alert('Training abgeschlossen!');
+   showScreen('reviewMenu');refresh();return;
  }
  if(enemyHp<=0) nextWave();
  current=reviewQueue.shift(); ensureCardV5(current); sessionSeen++;
- $('reviewProgress').textContent=`Karte ${sessionSeen} · noch ${reviewQueue.length} im Stapel${reviewMode==='training'?' · freies Training':''}`;
+ $('reviewProgress').textContent=reviewMode==='srs'?`Start: ${sessionStartDue} fällig · ${sessionAnswered.size} beantwortet · ${reviewQueue.length+1} offen (inkl. dieser Karte)`:`Karte ${sessionSeen} · noch ${reviewQueue.length} im Stapel · freies Training`;
  const directionLabel=renderReviewCard(current);
  $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> · ${directionLabel} · ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:'SRS-Termin bleibt unverändert'}`;
  if(current.example){$('reviewExample').innerHTML=safe(current.example).replace(/\n/g,'<br>');$('reviewExample').classList.remove('hidden')}
@@ -2529,7 +2542,7 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
  const r=b.dataset.rate;
  if(r==='again') AdvAudio.wrong();
  else if(r==='good'||r==='easy') AdvAudio.correct();
- if(reviewMode==='srs') schedule(current,r);
+ if(reviewMode==='srs'){schedule(current,r);sessionAnswered.add(current.id)}
  else {
    // Freies Training protokolliert separat, verändert aber keine SRS-Fälligkeit.
    current.practiceHistory=current.practiceHistory||[];
