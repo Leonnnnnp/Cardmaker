@@ -173,3 +173,46 @@ test('adventure keeps its independent 50/50 mix and reading fallback', () => {
   context.advState.direction = 'de-jp';
   assert.equal(context.adventureDirectionFor(c), 'jp-de');
 });
+
+test('storytelling catalogue appears without introducing cards and has complete, unique content', () => {
+  const {context, nodes, buttons} = fixture();
+  const set = context.CURATED_SETS.find(s => s.id === 'storytelling');
+  assert.equal(set.name, 'Geschichten erzählen');
+  assert.equal(set.mode, 'guided');
+  assert.equal(set.lessons.length, 6);
+  assert.equal(set.cards.length, 19);
+  assert.equal(new Set(set.cards.map(c => c.id)).size, 19);
+  for (const card of set.cards) {
+    assert.ok(card.front && card.reading && card.back && card.example);
+    assert.ok(card.example.split('\n').length >= 3, 'Japanese, German, and nuance');
+  }
+  assert.equal(context.db.cards.length, 0);
+  assert.match(nodes.reviewSetTiles.innerHTML, /Geschichten erzählen/);
+  const introduce = () => buttons.get('.review-set-new').find(b => b.dataset.set === 'storytelling').onclick();
+  context.confirm = () => false;
+  introduce();
+  assert.equal(context.db.cards.length, 0);
+  context.confirm = () => true;
+  introduce();
+  assert.equal(context.db.cards.length, 3);
+  assert.equal(nodes.reviewSetFilter.value, 'storytelling');
+  assert.ok(context.db.cards.every(c => c.state === 'new' && c.due === context.now()));
+});
+
+test('storytelling lessons can be introduced in any order without touching existing SRS or edits', () => {
+  const existing = card('existing', 'my-cards', 9876543, 'mature');
+  const {context} = fixture([existing]);
+  const before = JSON.stringify(existing);
+  const set = context.CURATED_SETS.find(s => s.id === 'storytelling');
+  for (const lesson of [...set.lessons].reverse()) context.introduceGuidedLesson(set.id, lesson.id);
+  assert.equal(context.db.cards.length, 20);
+  assert.equal(JSON.stringify(existing), before);
+  const personal = context.db.cards.find(c => c.curatedSetId === set.id);
+  personal.front = 'persönlich bearbeitet';
+  personal.due = 123456789;
+  const complete = JSON.stringify(context.db.cards);
+  for (const lesson of set.lessons) context.introduceGuidedLesson(set.id, lesson.id);
+  assert.equal(JSON.stringify(context.db.cards), complete);
+  assert.equal(context.nextGuidedLesson(set), null);
+});
+

@@ -275,7 +275,9 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
  <section id="trainingMenu" class="screen">
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>🎯 Freies Training</h2></div>
    <div class="panel train-panel">
-     <div class="note">Jederzeit üben – unabhängig von der SRS-Fälligkeit. Freies Training verändert deine nächsten Fälligkeitstermine nicht.</div>
+     <div class="note">Jederzeit üben – unabhängig von der SRS-Fälligkeit. Du entscheidest, ob deine Bewertungen auch den Lernstand aktualisieren.</div>
+     <label class="train-check" style="margin-top:10px"><input type="checkbox" id="trainingUpdateSrs" aria-describedby="trainingSrsHelp"> Lernstand aktualisieren (SRS)</label>
+     <div class="note" id="trainingSrsHelp" style="margin-top:5px">Aus: nur Übungsstatistik. An: Nochmal, Schwer, Gut und Leicht aktualisieren den Lernstand und den nächsten Review-Termin – auch bei noch nicht fälligen Karten. „Nochmal“ erscheint zusätzlich erneut in dieser Runde.</div>
      <div class="row" style="margin-top:10px"><span class="note">Set:</span><select id="trainingSetFilter" class="set-select"></select></div>
      <div class="train-checks" style="margin-top:10px">
        <label class="train-check"><input type="checkbox" class="train-status" value="new" checked> Neu</label>
@@ -686,6 +688,9 @@ let editId = null;
 let reviewQueue = [];
 let current = null;
 let reviewMode='srs';
+let trainingUpdatesSrs=false;
+let reviewRatingLocked=false;
+let reviewSessionToken=0;
 let reviewDirection='mixed';
 let reviewDirectionBalance=0;
 let currentDirection='jp-de';
@@ -1912,7 +1917,7 @@ function updateHp(){
  $('useGuard').disabled=guardCount<=0 || guardActive;
  $('useFocus').disabled=focusCount<=0 || focusActive;
  $('comboInfo').textContent=combo>=2?`🔥 ${combo}er Kombo`:'';
- $('waveInfo').textContent=`Gegner ${wave} · ${reviewMode==='srs'?'SRS-Review':'Freies Training'}`;
+ $('waveInfo').textContent=`Gegner ${wave} · ${reviewMode==='srs'?'SRS-Review':trainingUpdatesSrs?'Training mit SRS':'Freies Training'}`;
 }
 function attackEnemy(dmg){
  if(focusActive){dmg+=14;focusActive=false;$('combatLog').textContent='✨ Fokus verstärkt deinen Angriff!';}
@@ -1960,6 +1965,7 @@ function nextWave(){
 }
 
 function startReview(){
+ reviewSessionToken++;
  reviewMode='srs';
  reviewDirection='mixed';
  reviewQueue=cardsForSet($('reviewSetFilter')?.value||'all',dueCards()).sort((a,b)=>{
@@ -1978,6 +1984,8 @@ function startTraining(cards,direction=null){
  const unique=[...new Map(cards.map(c=>[c.id,c])).values()];
  if(!unique.length){alert('Für diese Auswahl gibt es keine Karten.');return;}
  reviewMode='training';
+ reviewSessionToken++;
+ trainingUpdatesSrs=!!$('trainingUpdateSrs')?.checked;
  reviewDirection=direction || $('trainingDirection')?.value || 'mixed';
  resetReviewDirectionBalance();
  reviewQueue=[...unique].sort(()=>Math.random()-.5);
@@ -2442,7 +2450,7 @@ function renderReviewCard(card){
  return dirLabel;
 }
 function nextCard(){
- if(heroHp<=0 && reviewMode==='training'){
+ if(heroHp<=0 && reviewMode==='training' && !trainingUpdatesSrs){
    alert('Du bist erschöpft. Die restlichen Karten bleiben für später erhalten.');
    showScreen('home');refresh();return;
  }
@@ -2456,14 +2464,18 @@ function nextCard(){
       '\nIm gewählten Set weiterhin fällig: '+remainingInSet+
       '\nInsgesamt noch fällig: '+remainingGlobal+
       (remainingGlobal?'\nWeitere Karten sind noch fällig.':'\nAktuell keine weiteren Karten fällig.'));
-   }else alert('Training abgeschlossen!');
+   }else alert(trainingUpdatesSrs
+     ? 'Training mit SRS abgeschlossen!\nLernstand von '+sessionAnswered.size+' Karte(n) aktualisiert.\nInsgesamt weiterhin fällig: '+dueCards().length
+     : 'Training abgeschlossen!');
+   current=null;reviewRatingLocked=true;
    showScreen('reviewMenu');refresh();return;
  }
  if(enemyHp<=0) nextWave();
- current=reviewQueue.shift(); ensureCardV5(current); sessionSeen++;
+ current=reviewQueue.shift();current=db.cards.find(c=>c.id===current.id)||current;
+ ensureCardV5(current); sessionSeen++;reviewRatingLocked=false;
  $('reviewProgress').textContent=reviewMode==='srs'?`Start: ${sessionStartDue} fällig · ${sessionAnswered.size} beantwortet · ${reviewQueue.length+1} offen (inkl. dieser Karte)`:`Karte ${sessionSeen} · noch ${reviewQueue.length} im Stapel · freies Training`;
  const directionLabel=renderReviewCard(current);
- $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> · ${directionLabel} · ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:'SRS-Termin bleibt unverändert'}`;
+ $('reviewMeta').innerHTML=`<span class="status-chip ${statusClass(cardStatus(current))}">${statusLabel(cardStatus(current))}</span> · ${directionLabel} · ${reviewMode==='srs'?`fällig ${formatDue(current.due)}`:trainingUpdatesSrs?'📚 Lernstand wird aktualisiert':'SRS-Termin bleibt unverändert'}`;
  if(current.example){$('reviewExample').innerHTML=safe(current.example).replace(/\n/g,'<br>');$('reviewExample').classList.remove('hidden')}
  else $('reviewExample').classList.add('hidden');
  $('answerArea').classList.add('hidden');$('showAnswer').classList.remove('hidden');
@@ -2569,22 +2581,30 @@ function schedule(card,rating){
  card.updatedAt=t;
  appendHistory(card,rating,oldState,card.state,card.due,interval);
 }
+function applyReviewRating(card,rating){
+ const live=card?.id?db.cards.find(c=>c.id===card.id):null;
+ if(!live || !['again','hard','good','easy'].includes(rating))return null;
+ if(reviewMode==='srs' || (reviewMode==='training' && trainingUpdatesSrs)){schedule(live,rating);sessionAnswered.add(live.id)}
+ else {
+   // Without the opt-in, free training keeps its separate practice history.
+   live.practiceHistory=live.practiceHistory||[];
+   const practicedAt=now();
+   live.practiceHistory.push({at:practicedAt,rating});
+   if(live.practiceHistory.length>100) live.practiceHistory=live.practiceHistory.slice(-100);
+   live.updatedAt=practicedAt;
+ }
+ return live;
+}
 document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
- if(!current)return;
- const liveCurrent=current?.id?db.cards.find(c=>c.id===current.id):null;
- if(liveCurrent) current=liveCurrent;
+ if(!current || reviewRatingLocked || $('answerArea').classList.contains('hidden'))return;
+ reviewRatingLocked=true;
+ const sessionToken=reviewSessionToken;
  const r=b.dataset.rate;
+ const rated=applyReviewRating(current,r);
+ if(!rated){setTimeout(()=>{if(sessionToken===reviewSessionToken)nextCard()},450);return;}
+ current=rated;
  if(r==='again') AdvAudio.wrong();
  else if(r==='good'||r==='easy') AdvAudio.correct();
- if(reviewMode==='srs'){schedule(current,r);sessionAnswered.add(current.id)}
- else {
-   // Freies Training protokolliert separat, verändert aber keine SRS-Fälligkeit.
-   current.practiceHistory=current.practiceHistory||[];
-   const practicedAt=now();
-   current.practiceHistory.push({at:practicedAt,rating:r});
-   if(current.practiceHistory.length>100) current.practiceHistory=current.practiceHistory.slice(-100);
-   current.updatedAt=practicedAt;
- }
  if(r==='again'){
    combo=0; enemyAttack(12);
    // "Nochmal" kommt IMMER noch einmal in denselben Durchlauf.
@@ -2603,9 +2623,9 @@ document.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{
    potionCount++;$('combatLog').textContent='🎁 5er-Serie: Heiltrank gefunden!';
  }
  save();updateHp();
- setTimeout(nextCard,450);
+ setTimeout(()=>{if(sessionToken===reviewSessionToken)nextCard()},450);
 });
-$('leaveReview').onclick=()=>{showScreen('home');refresh()};
+$('leaveReview').onclick=()=>{reviewSessionToken++;current=null;reviewRatingLocked=true;showScreen('home');refresh()};
 $('editCurrent').onclick=()=>{if(current)openEditor(current)};
 
 
@@ -2704,4 +2724,5 @@ initCloud();
 </script>
 </body>
 </html>
+
 

@@ -49,7 +49,7 @@ async function main() {
       await page.locator('#learningExportClose').click();
       await page.locator('[data-screen="reviewMenu"]').click();
       assert.equal(await page.locator('#reviewSetTiles').count(), 1);
-      assert.equal(await page.locator('.review-set-tile').count(), 3);
+      assert.equal(await page.locator('.review-set-tile').count(), 4);
       const layout = await page.evaluate(() => {
         const tiles = [...document.querySelectorAll('.review-set-tile')];
         return {overflow: document.documentElement.scrollWidth > innerWidth, columns: getComputedStyle(document.querySelector('#reviewSetTiles')).gridTemplateColumns.split(' ').length,
@@ -68,7 +68,7 @@ async function main() {
       await page.screenshot({path: 'test-results/review-' + width + '.png', fullPage: true});
       assert.deepEqual(await srsSnapshot(page), before, 'navigation preserves SRS');
       page.once('dialog', dialog => dialog.accept());
-      await page.locator('.review-set-new').click();
+      await page.locator('.review-set-new[data-set="nuances-daily"]').click();
       assert.equal(await page.locator('#reviewSetFilter').inputValue(), 'nuances-daily');
       assert.deepEqual(await srsSnapshot(page), before, 'lesson introduction preserves existing cards');
       await page.locator('#reviewMenu [data-screen="home"]').click();
@@ -76,6 +76,7 @@ async function main() {
       assert.match(await page.locator('#learningExportText').inputValue(),/5 Karten/,'reopening reflects newly introduced cards');
       await page.locator('#learningExportClose').click();
       await page.locator('[data-screen="trainingMenu"]').click();
+      assert.equal(await page.locator('#trainingUpdateSrs').isChecked(), false);
       await page.locator('#trainingSetFilter').selectOption('my-cards');
       await page.locator('#trainAllBtn').click();
       await page.locator('#showAnswer').click();
@@ -143,6 +144,53 @@ async function main() {
       assert.equal(updated[0].history.at(-1).rating, 'hard');
       const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('kotodama_srs_proto_v1')).cards.find(c => c.id === 'own'));
       assert.equal(persisted.history.at(-1).rating, 'hard');
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('#leaveAdventure').click();
+      for (const direction of ['jp-de', 'de-jp']) {
+        await page.locator('[data-screen="trainingMenu"]').click();
+        await page.locator('#trainingUpdateSrs').check();
+        await page.locator('#trainingSetFilter').selectOption('my-cards');
+        await page.locator('#trainingDirection').selectOption(direction);
+        await page.evaluate(() => {db.cards.find(c => c.id === 'own').due = Date.now() + 86400000 * 7; save();});
+        const trainingBefore = await srsSnapshot(page);
+        await page.locator('#trainAllBtn').click();
+        assert.match(await page.locator('#reviewMeta').innerText(), /Lernstand wird aktualisiert/);
+        await page.locator('#showAnswer').click();
+        await page.locator('[data-rate="again"]').click();
+        let trainingAfter = await srsSnapshot(page);
+        assert.equal(trainingAfter[0].history.at(-1).rating, 'again');
+        assert.equal(trainingAfter[0].reps, trainingBefore[0].reps + 1);
+        assert.ok(Math.abs(trainingAfter[0].due - Date.now() - 600000) < 5000);
+        assert.deepEqual(trainingAfter[1], trainingBefore[1], 'unanswered set remains unchanged');
+        await page.locator('[data-rate="again"]').evaluate(el => {el.click(); el.click();});
+        assert.deepEqual(await srsSnapshot(page), trainingAfter, 'double clicks cannot duplicate rating or requeue');
+        await page.locator('#showAnswer').waitFor({state: 'visible'});
+        await page.evaluate(() => {db.cards = structuredClone(db.cards); rebindActiveCardRefs(); heroHp = 0;});
+        await page.locator('#showAnswer').click();
+        await page.screenshot({path: 'test-results/training-srs-' + width + '-' + direction + '.png', fullPage: true});
+        const finished = page.waitForEvent('dialog');
+        await page.locator('[data-rate="hard"]').click();
+        const summary = await finished;
+        assert.match(summary.message(), /Training mit SRS abgeschlossen/);
+        await summary.dismiss();
+        await page.locator('#reviewMenu').waitFor({state: 'visible'});
+        trainingAfter = await srsSnapshot(page);
+        assert.equal(trainingAfter[0].reps, trainingBefore[0].reps + 2);
+        assert.equal(trainingAfter[0].history.at(-1).rating, 'hard');
+        assert.deepEqual(trainingAfter[1], trainingBefore[1]);
+        assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('kotodama_srs_proto_v1')).cards.find(c => c.id === 'own').history.at(-1).rating), 'hard');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+        await page.locator('#reviewMenu [data-screen="home"]').click();
+      }
+      const beforeStory = await srsSnapshot(page);
+      await page.locator('[data-screen="sets"]').click();
+      assert.match(await page.locator('#setLibrary').innerText(), /Geschichten erzählen/);
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('.guided-start[data-set="storytelling"]').click();
+      assert.equal(await page.evaluate(() => db.cards.filter(c => c.curatedSetId === 'storytelling').length), 3);
+      assert.deepEqual(await srsSnapshot(page), beforeStory, 'story introduction preserves existing SRS');
+      await page.screenshot({path: 'test-results/storytelling-' + width + '.png', fullPage: true});
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       assert.deepEqual(errors, [], 'no runtime errors at ' + width);
       console.log('Browser checks passed at ' + width + 'px: layout, set actions, SRS invariants, training, adventure');
       await context.close();
@@ -153,4 +201,5 @@ async function main() {
   }
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});
+
 
