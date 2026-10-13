@@ -2303,7 +2303,7 @@ function advCorrectAnswer(card,userVal){
  return adventureRomajiAnswers(card).includes(u);
 }
 function advEnemyAttack(base){
- const s=advState;AdvAudio.enemy();
+ const s=advState;if(!s)return;AdvAudio.enemy();
  if(s.invisTurns>0){s.invisTurns--;$('advFeedback').textContent+=' 👻 Der Angriff geht ins Leere.';advUpdateUI();return}
  let dmg=base;if(s.shieldTurns>0){s.shieldTurns--;dmg=Math.max(1,Math.round(dmg*.5))}
  s.heroHp=Math.max(0,s.heroHp-dmg);advSpawnDmg('hero','-'+dmg);$('advStage').classList.add('shake');advDrawHero('hurt',false,10,()=>advDrawHero('idle',true,6));setTimeout(()=>$('advStage').classList.remove('shake'),360);
@@ -2357,13 +2357,13 @@ function advSubmitAnswer(){
    advSetFeedback(okPrefix+'<br><b>Lösung:</b> '+safe(answer).replace(/\n/g,' · '),okPrefix+' Lösung: '+answer,'correct');
    if(s.combo%5===0){const heal=Math.min(36,s.heroHpMax-s.heroHp);s.heroHp+=heal;if(heal)advSpawnDmg('hero','+'+heal,true)}
    const counterChance=s.kind==='boss'?.35:s.kind==='elite'?.22:.08;
-   if(s.enemyHp>0&&Math.random()<counterChance)setTimeout(()=>advEnemyAttack(s.kind==='boss'?18:s.kind==='elite'?14:10),260);
+   if(s.enemyHp>0&&Math.random()<counterChance)setTimeout(()=>{if(advState===s)advEnemyAttack(s.kind==='boss'?18:s.kind==='elite'?14:10)},260);
  }else{
    AdvAudio.wrong();
    s.combo=0;s.speedCombo=0;
    const badPrefix='✗ Nicht ganz. Deine Eingabe: „'+val+'“';
    advSetFeedback(safe(badPrefix)+'<br><b>Lösung:</b> '+safe(answer).replace(/\n/g,' · '),badPrefix+' Lösung: '+answer,'wrong');
-   setTimeout(()=>advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15),180);
+   setTimeout(()=>{if(advState===s)advEnemyAttack(s.kind==='boss'?24:s.kind==='elite'?19:15)},180);
  }
  const srsFeedback=advApplySrsAnswer(correct);
  if(srsFeedback){
@@ -2382,7 +2382,7 @@ function advWinEncounter(){
  const names={heal:'Heiltrank',shield:'Schild',invis:'Unsichtbarkeit',hint:'Hinweisrolle',hourglass:'Sanduhr',phoenix:'Phönixfeder'};
  $('advFeedback').className='adv-feedback correct';$('advFeedback').textContent='🏆 Gegner besiegt! Gefunden: '+names[drop]+'.';
  advUpdateUI();
- setTimeout(()=>{if(!advState)return;advState.heroHp=Math.min(advState.heroHpMax,advState.heroHp+28);advBeginEncounter(advState.encounterIndex+1)},700);
+ setTimeout(()=>{if(advState!==s)return;s.heroHp=Math.min(s.heroHpMax,s.heroHp+28);advBeginEncounter(s.encounterIndex+1)},700);
 }
 function advFinishRun(won){
  clearTimeout(advTimerHandle);AdvAudio.stopMusic();const a=ensureAdventureMeta();if(won)a.wins++;

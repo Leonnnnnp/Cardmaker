@@ -89,3 +89,11 @@ test('deleted and unanswered cards receive no SRS changes', () => {
   assert.equal(JSON.stringify(c.db.cards), before);
   assert.equal(c.advState.srsRatings.size, 0);
 });
+
+test('a delayed enemy attack after leaving a run has no effect', () => {
+  const c = fixture();
+  c.advState = null;
+  c.AdvAudio = {enemy: () => {throw new Error('closed run must not attack');}};
+  vm.runInContext(source('advEnemyAttack'), c);
+  assert.doesNotThrow(() => c.advEnemyAttack(20));
+});
