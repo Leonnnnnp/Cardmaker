@@ -560,8 +560,20 @@ function setCloudStatus(text,kind=''){
  if($('cloudSyncBtn')) $('cloudSyncBtn').disabled=!cloudUser||cloudBusy||!navigator.onLine;
  if($('cloudLogoutBtn')) $('cloudLogoutBtn').classList.toggle('hidden',!cloudUser);
 }
+function upgradeStorytellingReadings(cards){
+ const set=(window.KOTODAMA_CURATED_SETS||[]).find(s=>s.id==='storytelling');
+ if(!set)return;
+ const templates=new Map(set.cards.map(t=>[t.id,t]));
+ for(const card of cards){
+   if(card?.curatedSetId!==set.id)continue;
+   const template=templates.get(card.sourceTemplateId);
+   // Upgrade only the unedited old text; preserve every SRS field and personal edits.
+   if(template?.legacyExample && card.example===template.legacyExample)card.example=template.example;
+ }
+}
 function normalizeSaveData(x){
  if(!x || !Array.isArray(x.cards)) return {cards:[]};
+ upgradeStorytellingReadings(x.cards);
  if(!x.meta || typeof x.meta!=='object') x.meta={};
  if(typeof x.meta.showReadingByDefault!=='boolean') x.meta.showReadingByDefault=true;
  if(typeof x.meta.soundEnabled!=='boolean') x.meta.soundEnabled=true;
@@ -2724,5 +2736,6 @@ initCloud();
 </script>
 </body>
 </html>
+
 
 

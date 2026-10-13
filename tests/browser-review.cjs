@@ -191,6 +191,14 @@ async function main() {
       assert.deepEqual(await srsSnapshot(page), beforeStory, 'story introduction preserves existing SRS');
       await page.screenshot({path: 'test-results/storytelling-' + width + '.png', fullPage: true});
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await page.locator('#sets [data-screen="home"]').click();
+      await page.locator('[data-screen="trainingMenu"]').click();
+      await page.locator('#trainingSetFilter').selectOption('storytelling');
+      await page.locator('#trainAllBtn').click();
+      await page.locator('#showAnswer').click();
+      assert.match(await page.locator('#reviewExample').innerText(), /駅（えき）|写真（しゃしん）/);
+      await page.screenshot({path: 'test-results/storytelling-readings-' + width + '.png', fullPage: true});
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       assert.deepEqual(errors, [], 'no runtime errors at ' + width);
       console.log('Browser checks passed at ' + width + 'px: layout, set actions, SRS invariants, training, adventure');
       await context.close();

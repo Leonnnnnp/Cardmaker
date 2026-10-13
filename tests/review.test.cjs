@@ -216,3 +216,36 @@ test('storytelling lessons can be introduced in any order without touching exist
   assert.equal(context.nextGuidedLesson(set), null);
 });
 
+test('all storytelling Kanji in examples and explanations carry Kana readings', () => {
+  const {context} = fixture();
+  const set = context.CURATED_SETS.find(s => s.id === 'storytelling');
+  for (const card of set.cards) {
+    const withoutReadings = card.example.replace(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]+（[\p{Script=Hiragana}\p{Script=Katakana}ー]+）/gu, '');
+    assert.doesNotMatch(withoutReadings, /\p{Script=Han}/u, card.id + ' has no unannotated Kanji');
+    const stripped = card.example.replace(/（[\p{Script=Hiragana}\p{Script=Katakana}ー]+）/gu, '');
+    assert.equal(stripped, card.legacyExample, 'only readings change, including explanations');
+  }
+});
+
+test('existing unedited storytelling cards upgrade without changing SRS or personal edits', () => {
+  const {context} = fixture();
+  for (const name of ['upgradeStorytellingReadings', 'normalizeSaveData']) vm.runInContext(functionSource(name), context);
+  const set = context.CURATED_SETS.find(s => s.id === 'storytelling');
+  const cards = set.cards.map((t, i) => ({id: String(i), curatedSetId: set.id, sourceTemplateId: t.id, example: t.legacyExample, front: 'persönlich bearbeitet', due: 987654321, state: 'mature', reps: 23, history: [{rating:'good', at:1234}], stability: 55, difficulty: 4, learningStep: 0, lapses: 2, lastReview: 1234, updatedAt: 4567}));
+  const edited = {...cards[0], id:'edited', example: cards[0].example+' Meine eigene Notiz.'};
+  const unrelated = {...cards[0], id:'unrelated', curatedSetId:'nuances-daily'};
+  cards.push(edited, unrelated);
+  const before = JSON.parse(JSON.stringify(cards));
+  const save = {cards, meta:{}};
+  context.normalizeSaveData(save);
+  for(let i=0; i<set.cards.length; i++){
+    assert.equal(cards[i].example, set.cards[i].example);
+    assert.deepEqual({...cards[i], example: before[i].example}, before[i]);
+  }
+  assert.deepEqual(edited, before.at(-2));
+  assert.deepEqual(unrelated, before.at(-1));
+  const once = JSON.stringify(save);
+  context.normalizeSaveData(save);
+  assert.equal(JSON.stringify(save), once, 'upgrade is idempotent on load, merge, and save');
+});
+
