@@ -235,7 +235,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 
  <section id="home" class="screen active">
    <div class="stats">
-     <div class="stat"><strong id="dueCount">0</strong>fällig</div>
+     <div class="stat"><strong id="dueCount">0</strong>jetzt fällig</div>
      <div class="stat"><strong id="newCount">0</strong>neu</div>
      <div class="stat"><strong id="totalCount">0</strong>gesamt</div>
    </div>
@@ -245,6 +245,7 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <div class="stat"><strong id="relearnCount">0</strong>wiederlernen</div>
    </div>
    <div class="note" id="homeText" style="margin-top:10px"></div>
+   <div class="note" id="homeSyncNotice" role="status" style="margin-top:5px"></div>
    <div class="main-menu">
      <button class="btn menu-card primary" data-screen="reviewMenu"><strong>⚔️ Review</strong><span>Heutige Expedition und fällige Karten</span></button>
      <button class="btn menu-card" data-screen="trainingMenu"><strong>🎯 Freies Training</strong><span>Unabhängig von der SRS-Fälligkeit üben</span></button>
@@ -259,11 +260,12 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>⚔️ Review</h2></div>
    <div class="panel">
      <div class="section-title">Heutige Expedition</div>
-     <div class="note">Wähle ein Set oder alle Karten. Neue Lerneinheiten führst du mit „+ Neue“ ein.</div>
+     <div class="note">Wähle ein Set oder alle Karten. Neue Lerneinheiten führst du mit „+ Neue“ ein. Ein Tagesintervall läuft ab der letzten Bewertung, nicht ab Mitternacht. Weitere Karten können heute später fällig werden.</div>
      <select id="reviewSetFilter" class="hidden" aria-label="Review-Set"></select>
      <div class="review-set-grid" id="reviewSetTiles"></div>
      <div class="review-status-block"><div id="reviewDueSummary" style="font-weight:800;margin-top:7px"></div>
      <div class="note" id="reviewNextDue" style="margin-top:5px"></div></div>
+     <div class="note" id="reviewSyncNotice" role="status" style="margin-top:5px"></div>
      <div class="row" style="margin-top:12px"><button class="btn primary" id="startReview">Review starten</button></div>
    </div>
    <div class="panel">
@@ -551,6 +553,7 @@ let db = {cards:[]};
 const SUPABASE_URL='https://tyrlysggrulcsptswynl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_LdY1qv-ar0HqSYh9KFZrMg_fFVL4erX';
 let cloudClient=null, cloudUser=null, cloudSaveTimer=null, cloudBusy=false, cloudInitialized=false;
+let lastReviewSyncNotice='';
 
 function setCloudStatus(text,kind=''){
  const s=$('cloudStatus'), d=$('cloudDot');
@@ -606,6 +609,18 @@ function mergeSaveData(localData,cloudData){
    }
  };
 }
+function applyCloudMerge(cloudData){
+ const t=now(),before=reviewAvailability(db.cards,t).due.length;
+ const merged=mergeSaveData(db,cloudData),after=reviewAvailability(merged.cards,t).due.length;
+ if(before!==after){
+   lastReviewSyncNotice='Cloud-Abgleich ('+new Date(t).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+'): lokal '+before+' → zusammengeführt '+after+' jetzt fällige Karten. Die aktuellen Zahlen stehen oben.';
+ }
+ db=merged;
+ migrateV5();
+ rebindActiveCardRefs();
+ localStorage.setItem(STORE,JSON.stringify(db));
+ refresh();
+}
 function rebindActiveCardRefs(){
  const byId=new Map((db.cards||[]).filter(c=>c?.id).map(c=>[c.id,c]));
  if(current?.id) current=byId.get(current.id)||current;
@@ -647,15 +662,8 @@ async function syncCloudSave(showSuccess=true){
    if(error) throw error;
 
    if(data?.save_data){
-     const merged=mergeSaveData(db,data.save_data);
-     db=merged;
-     migrateV5();
-     // Cloud-Merge erzeugt neue Kartenobjekte. Eine laufende Review-Runde muss
-     // danach auf genau diese gespeicherten Objekte zeigen, sonst würden
-     // Bewertungen nur veraltete Kopien in reviewQueue/current verändern.
-     rebindActiveCardRefs();
-     localStorage.setItem(STORE,JSON.stringify(db));
-     refresh();
+     // Preserve the active queue while rebinding its cards to the merged save.
+     applyCloudMerge(data.save_data);
    }
    await pushCloudSave();
    setCloudStatus(showSuccess?'Synchronisiert':'Cloud verbunden','ok');
@@ -829,9 +837,19 @@ function load(){
  try{ const x=JSON.parse(localStorage.getItem(STORE)); if(x&&Array.isArray(x.cards)) db=normalizeSaveData(x); }catch(e){}
  migrateV5(); refresh();
 }
+function reviewAvailability(cards=db.cards,base=now()){
+ const end=new Date(base);end.setHours(24,0,0,0);
+ const due=cards.filter(c=>(c.due||0)<=base).sort((a,b)=>(a.due||0)-(b.due||0));
+ const future=cards.filter(c=>(c.due||0)>base).sort((a,b)=>(a.due||0)-(b.due||0));
+ return {due,laterToday:future.filter(c=>Number(c.due)<end.getTime()).length,nextDue:future.length?Number(future[0].due):null};
+}
 function dueCards(){
- const t=now();
- return db.cards.filter(c => (c.due||0)<=t).sort((a,b)=>(a.due||0)-(b.due||0));
+ return reviewAvailability().due;
+}
+function laterReviewText(cards=db.cards,base=now()){
+ const availability=reviewAvailability(cards,base);
+ return (availability.laterToday?'Heute werden noch '+availability.laterToday+' Karte'+(availability.laterToday===1?'':'n')+' später fällig. ':'')+
+   (availability.nextDue?'Nächste Review: '+formatNextDue(availability.nextDue,base)+'.':'');
 }
 function formatNextDue(ts,base=now()){
  const diff=Math.max(0,ts-base), mins=Math.max(1,Math.ceil(diff/V5_MIN));
@@ -854,7 +872,7 @@ function renderReviewSetTiles(){
    const next=set.kind==='curated'&&set.mode==='guided'?nextGuidedLesson(set):null;
    return '<div class="review-set-tile '+(selected===set.id?'selected':'')+'" data-review-set="'+set.id+'">'+
     '<button type="button" class="review-set-choice" data-set="'+safe(set.id)+'" aria-pressed="'+(selected===set.id)+'"><span class="review-set-title">'+safe(set.name)+'</span>'+
-    '<span class="review-set-count"><span class="review-set-due">'+setDue.length+'</span><span class="note">fällig</span></span></button>'+
+    '<span class="review-set-count"><span class="review-set-due">'+setDue.length+'</span><span class="note">jetzt fällig</span></span></button>'+
     '<div class="set-progress"><div style="width:'+progress+'%"></div></div>'+
     '<div class="note">'+(set.kind==='curated'?introduced+' / '+total+' eingeführt':cards.length+' Karten')+'<br>Sicherheit Ø '+safety+'%</div>'+
     '<div class="review-set-actions"><button class="btn small review-set-learn '+(setDue.length?'primary':'ghost')+'" data-set="'+safe(set.id)+'" aria-label="Fällige Karten lernen: '+safe(set.name)+'" '+(setDue.length?'':'disabled')+'>Lernen</button>'+
@@ -870,14 +888,14 @@ function refreshReviewExpedition(due){
  const setName=setId==='all'?'Alle Karten':(setDefinitions().find(s=>s.id===setId)?.name||'Dieses Set');
  $('startReview').disabled=!due.length;
  if(!cards.length){summary.textContent=setName+': Noch keine Karten vorhanden.';next.textContent=setId===USER_SET_ID?'Füge deine erste eigene Karte hinzu.':'Führe eine neue Lerneinheit ein oder wähle ein anderes Set.';return}
- const t=now(), future=cards.map(c=>Number(c.due)||0).filter(x=>x>t).sort((a,b)=>a-b);
+ const t=now(),later=laterReviewText(cards,t);
  if(due.length){
    summary.textContent=setName+': '+due.length+' Karte'+(due.length===1?' ist':'n sind')+' jetzt fällig.';
-   next.textContent=future.length?'Nächster späterer Termin: '+formatNextDue(future[0],t)+'.':'';
+   next.textContent=later;
  }else{
    const globalRemaining=dueCards().length;
     summary.textContent=setName+': ✓ Hier ist aktuell nichts fällig.'+(setId!=='all'&&globalRemaining?' Insgesamt warten noch '+globalRemaining+' fällige Karten.':'');
-   next.textContent=future.length?'Nächste Review: '+formatNextDue(future[0],t)+'.':'Aktuell ist kein weiterer Review-Termin vorhanden.';
+   next.textContent=later||'Aktuell ist kein weiterer Review-Termin vorhanden.';
  }
 }
 function refresh(){
@@ -891,17 +909,22 @@ function refresh(){
  $('relearnCount').textContent=db.cards.filter(c=>cardStatus(c)==='relearning').length;
  $('totalCount').textContent=db.cards.length;
  $('homeText').textContent = db.cards.length
-   ? (due.length ? `${due.length} Karte(n) sind jetzt fällig.` : 'Aktuell ist nichts fällig. Du kannst trotzdem neue Karten sammeln.')
+   ? (due.length ? `${due.length} Karte(n) sind jetzt fällig. ` : 'Jetzt ist nichts fällig. ')+laterReviewText()
    : 'Füge beim Lesen dein erstes unbekanntes Wort hinzu.';
  renderSetSelectors();
  renderReviewSetTiles();
  refreshReviewExpedition(cardsForSet($('reviewSetFilter')?.value||'all',due));
+ for(const id of ['homeSyncNotice','reviewSyncNotice'])if($(id))$(id).textContent=lastReviewSyncNotice;
 
  renderSetLibrary();
  renderList();
 }
+function refreshVisibleReviewAvailability(){
+ if(document.hidden)return;
+ if(['home','reviewMenu'].some(id=>$(id)?.classList.contains('active')))refresh();
+}
 function showScreen(id){
- if(id==='reviewMenu')refresh();
+ if(id==='reviewMenu'||id==='home')refresh();
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  $(id).classList.add('active');
  document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('primary',b.dataset.screen===id));
@@ -2475,7 +2498,8 @@ function nextCard(){
       '\nIn der Runde übrig: 0'+
       '\nIm gewählten Set weiterhin fällig: '+remainingInSet+
       '\nInsgesamt noch fällig: '+remainingGlobal+
-      (remainingGlobal?'\nWeitere Karten sind noch fällig.':'\nAktuell keine weiteren Karten fällig.'));
+      (remainingGlobal?'\nWeitere Karten sind jetzt fällig.':'\nAktuell keine weiteren Karten fällig.')+
+      '\n'+laterReviewText());
    }else alert(trainingUpdatesSrs
      ? 'Training mit SRS abgeschlossen!\nLernstand von '+sessionAnswered.size+' Karte(n) aktualisiert.\nInsgesamt weiterhin fällig: '+dueCards().length
      : 'Training abgeschlossen!');
@@ -2733,9 +2757,13 @@ window.addEventListener('keydown',e=>{
 });
 load();
 initCloud();
+setInterval(refreshVisibleReviewAvailability,15000);
+document.addEventListener('visibilitychange',refreshVisibleReviewAvailability);
+window.addEventListener('focus',refreshVisibleReviewAvailability);
 </script>
 </body>
 </html>
+
 
 
 

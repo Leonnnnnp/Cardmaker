@@ -39,7 +39,7 @@ function fixture(cards = []) {
     refresh: () => {context.renderReviewSetTiles(); context.refreshReviewExpedition(context.cardsForSet(nodes.reviewSetFilter.value, context.dueCards()));},
     save: () => context.refresh()
   });
-  for (const name of ['safe', 'uid', 'setDefinitions', 'ensureCardSets', 'ensureCardV5', 'cardStatus', 'cardsForSet', 'setSafetyScore', 'curatedIntroducedIds', 'lessonState', 'nextGuidedLesson', 'introduceGuidedLesson', 'dueCards', 'formatNextDue', 'renderReviewSetTiles', 'refreshReviewExpedition', 'mixedReviewJPProbability', 'resetReviewDirectionBalance', 'chooseReviewDirection']) {
+  for (const name of ['safe', 'uid', 'setDefinitions', 'ensureCardSets', 'ensureCardV5', 'cardStatus', 'cardsForSet', 'setSafetyScore', 'curatedIntroducedIds', 'lessonState', 'nextGuidedLesson', 'introduceGuidedLesson', 'reviewAvailability', 'dueCards', 'laterReviewText', 'formatNextDue', 'renderReviewSetTiles', 'refreshReviewExpedition', 'mixedReviewJPProbability', 'resetReviewDirectionBalance', 'chooseReviewDirection']) {
     vm.runInContext(functionSource(name), context);
   }
   nodes.reviewSetFilter.value = 'all';
@@ -248,4 +248,5 @@ test('existing unedited storytelling cards upgrade without changing SRS or perso
   context.normalizeSaveData(save);
   assert.equal(JSON.stringify(save), once, 'upgrade is idempotent on load, merge, and save');
 });
+
 
