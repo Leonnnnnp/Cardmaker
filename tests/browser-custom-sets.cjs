@@ -13,7 +13,7 @@ async function main(){
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const origin='http://127.0.0.1:'+server.address().port;
  const browser=await chromium.launch({headless:true});
- const seed={cards:[{id:'existing',front:'猫',reading:'ねこ',back:'Katze',example:'猫がいる。',setIds:['my-cards'],source:'user',state:'mature',due:2000000000000,reps:7,history:[{at:123,rating:'good'}],stability:42,difficulty:4,lapses:1,learningStep:0,lastReview:123,updatedAt:123}],meta:{soundEnabled:false}};
+ const seed={cards:[{id:'existing',front:'猫',reading:'ねこ',back:'Katze',example:'猫がいる。',setIds:['my-cards'],source:'user',state:'mature',createdAt:100,intervalDays:42,ease:2.5,due:2000000000000,reps:7,history:[{at:123,rating:'good'}],stability:42,difficulty:4,lapses:1,learningStep:0,lastReview:123,updatedAt:123}],meta:{soundEnabled:false}};
  const srs=p=>p.evaluate(()=>{const {setIds,updatedAt,...rest}=db.cards.find(c=>c.id==='existing');return rest;});
  fs.mkdirSync('test-results',{recursive:true});
  try{
