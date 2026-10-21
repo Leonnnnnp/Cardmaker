@@ -1083,7 +1083,7 @@ function applyEditorAudioUrl(){
  $('cardAudioStatus').textContent=src?'Audiolink übernommen. Zum Abspielen ist Internet erforderlich.':'Kein Audio ausgewählt.';
  renderCardAudio($('previewCardAudio'),src);return true;
 }
-$('cardAudioUrl').onchange=applyEditorAudioUrl;
+$('cardAudioUrl').oninput=applyEditorAudioUrl;
 $('removeCardAudio').onclick=()=>resetEditorAudio();
 function validCardImage(value){
  if(typeof value!=='string')return '';
