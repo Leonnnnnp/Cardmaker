@@ -103,7 +103,10 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 .train-check{display:flex;align-items:center;gap:5px;background:#211934;border:1px solid #5e5078;border-radius:999px;padding:6px 9px;font-size:12px}
 .train-check input{width:auto;margin:0}
 .selection-tools{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
-.cardrow{grid-template-columns:auto 1fr auto}
+.set-card-head>div{min-width:0;overflow-wrap:anywhere}.set-chip{flex-shrink:0}
+select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflow-wrap:anywhere}.train-check input{flex-shrink:0}
+.modal-card .train-check{color:var(--ink)}
+.cardrow{grid-template-columns:auto minmax(0,1fr) auto;overflow-wrap:anywhere}
 .card-select{width:auto;margin-top:5px}
 .item-combat-bar{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:8px 0}
 .item-combat{position:relative}
@@ -312,7 +315,15 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
 
  <section id="sets" class="screen">
    <div class="mode-head"><button class="btn small" data-screen="home">←</button><h2>📚 Sets</h2></div>
-   <div class="note">Sets ordnen deinen Lernstoff. „Meine Karten“ enthält deine selbst erstellten Karten und kann beliebig wachsen. Kuratierte Sets werden später schrittweise eingeführt.</div>
+   <div class="note">Ordne deine Karten in eigene Sets. Eine Karte kann in mehreren Sets liegen und behält dabei denselben Lernstand.</div>
+   <form id="createSetForm" class="panel" style="margin-top:12px">
+     <label for="customSetName">Neues eigenes Set</label>
+     <input id="customSetName" maxlength="60" required placeholder="z. B. Reisen, Kochen oder meine Geschichte">
+     <label for="customSetDescription" style="margin-top:8px">Beschreibung (optional)</label>
+     <input id="customSetDescription" maxlength="200" placeholder="Was möchtest du hier sammeln?">
+     <button class="btn primary" type="submit" style="margin-top:10px">Set anlegen</button>
+     <div id="customSetStatus" class="note" role="status" style="margin-top:8px"></div>
+   </form>
    <div class="set-grid" id="setLibrary"></div>
  </section>
 
@@ -322,6 +333,12 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
      <button class="btn small ghost" id="selectVisibleBtn">Sichtbare auswählen</button>
      <button class="btn small ghost" id="clearSelectionBtn">Auswahl löschen</button>
      <span class="note" id="selectionCount">0 ausgewählt</span>
+   </div>
+   <div class="row" style="margin-bottom:10px">
+     <label for="assignSetSelect" class="note">Ausgewählte Karten zu Set hinzufügen:</label>
+     <select id="assignSetSelect" class="set-select"></select>
+     <button class="btn small" id="assignSelectedToSet">Hinzufügen</button>
+     <span id="assignSetStatus" class="note" role="status"></span>
    </div>
    <div class="filterbar">
      <input class="search" id="search" placeholder="Karten durchsuchen …">
@@ -457,6 +474,11 @@ select{border:2px solid #4a3822;border-radius:5px;padding:9px;background:#fffdf7
    <textarea id="backInput" placeholder="besuchen&#10;aufsuchen"></textarea>
    <label>Beispielsatz (optional)</label>
    <textarea id="exampleInput" placeholder="京都を訪れました。&#10;Ich habe Kyoto besucht."></textarea>
+   <fieldset style="margin:12px 0;padding:8px;border:1px solid #8b7a61;min-width:0">
+     <legend>Sets dieser Karte</legend>
+     <div id="editorSetChoices" class="train-checks"></div>
+     <div class="note">Mehrere Sets sind möglich. Den Lernstand gibt es pro Karte nur einmal.</div>
+   </fieldset>
    <div class="row">
      <button class="btn small ghost" id="copyFrontToExample">Vorderseite als Satz übernehmen</button>
      <span class="inline-note">Mehrzeilig möglich: Japanisch, Lesung und Übersetzung können getrennt stehen.</span>
@@ -583,6 +605,7 @@ function normalizeSaveData(x){
  if(typeof x.meta.correctSoundEnabled!=='boolean') x.meta.correctSoundEnabled=true;
  if(typeof x.meta.wrongSoundEnabled!=='boolean') x.meta.wrongSoundEnabled=true;
  if(!x.meta.sets || typeof x.meta.sets!=='object') x.meta.sets={};
+ if(!x.meta.customSets || typeof x.meta.customSets!=='object') x.meta.customSets={};
  return x;
 }
 function cardChangedAt(card){
@@ -605,6 +628,7 @@ function mergeSaveData(localData,cloudData){
    meta:{
      ...(remote.meta||{}),
      ...(local.meta||{}),
+     customSets:mergeCustomSets(local.meta,remote.meta),
      localUpdatedAt:Math.max(Number(remote.meta?.localUpdatedAt||0),Number(local.meta?.localUpdatedAt||0))
    }
  };
@@ -731,8 +755,42 @@ function ensureCardSets(c){
  if(!c.source)c.source='user';
  return c;
 }
+function customSetDefinitions(meta=db.meta){
+ return Object.values(meta?.customSets||{}).filter(s=>s && typeof s.id==='string' && /^custom-[a-zA-Z0-9-]+$/.test(s.id) && typeof s.name==='string' && s.name.trim()).map(s=>({...s,name:s.name.trim().slice(0,60),description:typeof s.description==='string'?s.description.slice(0,200):'',kind:'user',mode:'free'}));
+}
+function mergeCustomSets(localMeta,remoteMeta){
+ const sets=new Map();
+ for(const set of [...customSetDefinitions(remoteMeta),...customSetDefinitions(localMeta)]){
+   const previous=sets.get(set.id);
+   if(!previous || Number(set.updatedAt||0)>=Number(previous.updatedAt||0))sets.set(set.id,set);
+ }
+ return Object.fromEntries(sets);
+}
 function setDefinitions(){
- return [{id:USER_SET_ID,name:'Meine Karten',description:'Deine selbst erstellten und beliebig erweiterbaren Karten.',kind:'user'},...CURATED_SETS];
+ return [{id:USER_SET_ID,name:'Meine Karten',description:'Deine selbst erstellten Karten ohne besondere Set-Auswahl.',kind:'user'},...customSetDefinitions(),...CURATED_SETS];
+}
+function createCustomSet(name,description=''){
+ const clean=String(name||'').trim();
+ if(!clean || clean.length>60)throw new Error('Bitte einen Setnamen mit 1 bis 60 Zeichen eingeben.');
+ if(setDefinitions().some(s=>s.name.toLocaleLowerCase('de-DE')===clean.toLocaleLowerCase('de-DE')))throw new Error('Ein Set mit diesem Namen ist bereits vorhanden.');
+ db.meta=db.meta||{};db.meta.customSets=db.meta.customSets||{};
+ const id='custom-'+uid(),t=now();
+ db.meta.customSets[id]={id,name:clean,description:String(description||'').trim().slice(0,200),createdAt:t,updatedAt:t};
+ return id;
+}
+function addCardsToSet(ids,setId){
+ if(!setDefinitions().some(s=>s.id===setId&&s.kind==='user'))return 0;
+ const selected=new Set(ids);let count=0;
+ for(const card of db.cards){
+   if(!selected.has(card.id))continue;
+   ensureCardSets(card);
+   if(!card.setIds.includes(setId)){card.setIds.push(setId);card.updatedAt=now();count++;}
+ }
+ return count;
+}
+function renderEditorSetChoices(card=null,setId=null){
+ const selected=new Set(card?.setIds||[setId||USER_SET_ID]);
+ $('editorSetChoices').innerHTML=setDefinitions().map(s=>'<label class="train-check"><input type="checkbox" class="editor-set-choice" value="'+safe(s.id)+'" '+(selected.has(s.id)?'checked':'')+'> <span>'+safe(s.name)+'</span></label>').join('');
 }
 function cardsForSet(setId,cards=db.cards){
  if(!setId||setId==='all')return cards;
@@ -747,6 +805,8 @@ function renderSetSelectors(){
  for(const id of ['reviewSetFilter','trainingSetFilter','adventureSetFilter','cardSetFilter']){
    const el=$(id);if(!el)continue;const old=el.value;el.innerHTML=options;if([...el.options].some(o=>o.value===old))el.value=old;
  }
+ const target=$('assignSetSelect');
+ if(target){const old=target.value;target.innerHTML=defs.filter(s=>s.kind==='user').map(s=>'<option value="'+safe(s.id)+'">'+safe(s.name)+'</option>').join('');if([...target.options].some(o=>o.value===old))target.value=old;}
 }
 function curatedIntroducedIds(set){return new Set(db.cards.filter(c=>c.curatedSetId===set.id&&c.sourceTemplateId).map(c=>c.sourceTemplateId))}
 function lessonState(set,lesson){const ids=curatedIntroducedIds(set),done=lesson.cards.filter(x=>ids.has(x.id)).length;return {done,total:lesson.cards.length,complete:done===lesson.cards.length}}
@@ -765,10 +825,25 @@ function renderSetLibrary(){
   const active=cardsForSet(s.id),total=s.kind==='curated'?(s.cards?.length||0):active.length,introduced=s.kind==='curated'?active.filter(c=>c.curatedSetId===s.id).length:active.length,pct=total?Math.round(introduced/total*100):0,safety=setSafetyScore(active);
   let guided='';
   if(s.kind==='curated'&&s.mode==='guided'){const next=nextGuidedLesson(s);guided=next?(()=>{const st=lessonState(s,next),fresh=st.total-st.done;return '<div style="margin-top:12px;padding:12px;background:rgba(255,255,255,.05);border-radius:6px"><div class="note">ALS NÄCHSTES EMPFOHLEN</div><div style="font-weight:800;margin:4px 0">'+safe(next.title)+'</div><div class="note">'+safe(next.summary||'')+' · '+fresh+' neue Karte'+(fresh===1?'':'n')+'</div><button class="btn primary small guided-start" data-set="'+s.id+'" data-lesson="'+next.id+'" style="margin-top:9px">Lerneinheit beginnen</button></div>'})():'<div class="note" style="margin-top:10px">✓ Alle Lerneinheiten dieses Sets wurden eingeführt.</div>'}
-  return '<div class="panel set-card"><div class="set-card-head"><div><div class="section-title">'+safe(s.name)+'</div><div class="note">'+safe(s.description||'')+'</div></div><span class="set-chip">'+(s.kind==='user'?'USER-SET':'GEFÜHRT')+'</span></div><div class="set-progress"><div style="width:'+pct+'%"></div></div><div class="note">'+(s.kind==='user'?active.length+' Karten · Sicherheit Ø '+safety+'%':introduced+' / '+total+' eingeführt · Sicherheit Ø '+safety+'%')+'</div>'+guided+'</div>';
+  const actions=s.kind==='user'?'<div class="row" style="margin-top:12px"><button class="btn small set-manage" data-set="'+safe(s.id)+'">Karten verwalten</button><button class="btn small primary set-add-card" data-set="'+safe(s.id)+'">+ Neue Karte</button></div>':'';
+  return '<div class="panel set-card"><div class="set-card-head"><div><div class="section-title">'+safe(s.name)+'</div><div class="note">'+safe(s.description||'')+'</div></div><span class="set-chip">'+(s.kind==='user'?'EIGENES SET':'GEFÜHRT')+'</span></div><div class="set-progress"><div style="width:'+pct+'%"></div></div><div class="note">'+(s.kind==='user'?active.length+' Karten · Sicherheit Ø '+safety+'%':introduced+' / '+total+' eingeführt · Sicherheit Ø '+safety+'%')+'</div>'+guided+actions+'</div>';
  }).join('');
  box.querySelectorAll('.guided-start').forEach(b=>b.onclick=()=>introduceGuidedLesson(b.dataset.set,b.dataset.lesson));
+ box.querySelectorAll('.set-manage').forEach(b=>b.onclick=()=>{$('cardSetFilter').value=b.dataset.set;$('assignSetSelect').value=b.dataset.set;showScreen('cards');renderList()});
+ box.querySelectorAll('.set-add-card').forEach(b=>b.onclick=()=>openEditor(null,b.dataset.set));
 }
+$('createSetForm').onsubmit=e=>{
+ e.preventDefault();
+ try{
+   const id=createCustomSet($('customSetName').value,$('customSetDescription').value);save();
+   $('assignSetSelect').value=id;$('customSetName').value='';$('customSetDescription').value='';
+   $('customSetStatus').textContent='Set angelegt. Du kannst neue Karten erstellen oder bestehende Karten hinzufügen.';
+ }catch(error){$('customSetStatus').textContent=error.message;}
+};
+$('assignSelectedToSet').onclick=()=>{
+ const count=addCardsToSet(selectedCards,$('assignSetSelect').value);if(count)save();
+ $('assignSetStatus').textContent=selectedCards.size?count+' Karte(n) hinzugefügt.':'Bitte zuerst Karten auswählen.';
+};
 function ensureCardV5(c){
   ensureCardSets(c);
   if(!c.history) c.history=[];
@@ -970,7 +1045,7 @@ $('frontInput').addEventListener('input',()=>{
 });
 $('copyFrontToExample').onclick=()=>{ if(!$('exampleInput').value.trim()) $('exampleInput').value=$('frontInput').value.trim(); updatePreview(); };
 
-function openEditor(card=null){
+function openEditor(card=null,setId=null){
  $('germanLookupInput').value='';
  editId=card?.id||null;
  $('editorTitle').textContent=card?'Karte bearbeiten':'Neue Karte';
@@ -978,6 +1053,8 @@ function openEditor(card=null){
  $('readingInput').value=card?.reading||'';
  $('backInput').value=card?.back||'';
  $('exampleInput').value=card?.example||'';
+ const selected=$('cardSetFilter')?.value;
+ renderEditorSetChoices(card,setId||(customSetDefinitions().some(s=>s.id===selected)?selected:USER_SET_ID));
  $('readingStatus').textContent='Lokale Analyse bereit: Grundformen + häufige Beugungen, komplett offline.';
  updatePreview(); renderDuplicateWarning(); $('lookupResults').classList.add('hidden');
  $('editorModal').classList.add('show');
@@ -1873,12 +1950,14 @@ function commitCard(andNext=false){
  const front=$('frontInput').value.trim(), back=$('backInput').value.trim();
  if(!front||!back){ alert('Vorder- und Rückseite dürfen nicht leer sein.'); return; }
  const old=db.cards.find(c=>c.id===editId);
+ const setIds=[...document.querySelectorAll('.editor-set-choice:checked')].map(el=>el.value);
+ if(!setIds.length){alert('Bitte mindestens ein Set auswählen.');return;}
  if(old){
-   old.front=front; old.reading=$('readingInput').value.trim(); old.back=back; old.example=$('exampleInput').value.trim(); old.updatedAt=now();
+   old.front=front; old.reading=$('readingInput').value.trim(); old.back=back; old.example=$('exampleInput').value.trim(); old.updatedAt=now();old.setIds=setIds;
  }else{
    db.cards.push({id:uid(),front,reading:$('readingInput').value.trim(),back,example:$('exampleInput').value.trim(),
       createdAt:now(),updatedAt:now(),due:now(),reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,
-      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds:[USER_SET_ID]});
+      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds});
  }
  save();
  if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('germanLookupInput').focus();}
@@ -1905,7 +1984,7 @@ function renderList(){
    const status=cardStatus(c);
    d.innerHTML=`<input class="card-select" type="checkbox" data-id="${c.id}" ${selectedCards.has(c.id)?'checked':''}><div>
       <div class="front">${safe(c.front)}${c.reading?`<div class="note">${safe(c.reading)}</div>`:''}</div>
-      <div class="meta"><span class="status-chip ${statusClass(status)}">${statusLabel(status)}</span><span class="set-chip">${safe((setDefinitions().find(s=>c.setIds?.includes(s.id))||{name:'Meine Karten'}).name)}</span> ${safe(c.back).replace(/\n/g,' · ')} · fällig ${formatDue(c.due)}</div>
+      <div class="meta"><span class="status-chip ${statusClass(status)}">${statusLabel(status)}</span>${setDefinitions().filter(s=>c.setIds?.includes(s.id)).map(s=>'<span class="set-chip">'+safe(s.name)+'</span>').join(' ')} ${safe(c.back).replace(/\n/g,' · ')} · fällig ${formatDue(c.due)}</div>
       <div class="history">${c.history?.length||0} Reviews · ${c.lapses||0} Fehler · Intervall ${Math.round((c.intervalDays||0)*10)/10} Tage</div>
     </div><div><button class="btn small">✏️</button></div>`;
    d.querySelector('button').onclick=()=>openEditor(c);
@@ -2739,13 +2818,13 @@ $('importFile').addEventListener('change', async e=>{
    const parsed=JSON.parse(await file.text());
    if(!parsed || !Array.isArray(parsed.cards)) throw new Error('Keine gültige cards-Liste gefunden.');
    const cleaned=parsed.cards.filter(c=>c && typeof c.front==='string' && typeof c.back==='string').map(c=>({
-     id:c.id||uid(), front:c.front, reading:typeof c.reading==='string'?c.reading:'', back:c.back, example:typeof c.example==='string'?c.example:'',
+     ...c,id:c.id||uid(), front:c.front, reading:typeof c.reading==='string'?c.reading:'', back:c.back, example:typeof c.example==='string'?c.example:'',
      createdAt:Number(c.createdAt)||now(), updatedAt:Number(c.updatedAt)||now(), due:Number(c.due)||now(), reps:Number(c.reps)||0,
      intervalDays:Number(c.intervalDays)||0, ease:Number(c.ease)||2.5, lapses:Number(c.lapses)||0, lastReview:c.lastReview==null?null:Number(c.lastReview)
    }));
    if(!cleaned.length && parsed.cards.length) throw new Error('Die Karten konnten nicht gelesen werden.');
    if(!confirm(`Speicherstand mit ${cleaned.length} Karte(n) importieren? Der aktuelle lokale Stand wird ersetzt.`)) return;
-   db={cards:cleaned}; save(); showScreen('home');
+   db=normalizeSaveData({...parsed,cards:cleaned}); save(); showScreen('home');
    alert(`Import erfolgreich: ${cleaned.length} Karte(n) geladen.`);
  }catch(err){
    alert('Import fehlgeschlagen: '+err.message);
@@ -2763,6 +2842,7 @@ window.addEventListener('focus',refreshVisibleReviewAvailability);
 </script>
 </body>
 </html>
+
 
 
 
