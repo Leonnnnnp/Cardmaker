@@ -13,12 +13,18 @@ async function main(){
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const origin='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true});
  const seed={cards:[{id:'image-card',front:'猫',reading:'ねこ',back:'Katze',example:'猫がいる。',setIds:['my-cards'],source:'user',state:'mature',createdAt:100,due:123456,intervalDays:42,ease:2.5,reps:7,history:[{at:123,rating:'good'}],stability:42,difficulty:4,lapses:1,learningStep:0,lastReview:123,updatedAt:123}],meta:{soundEnabled:false}};
- const snapshot=p=>p.evaluate(()=>{const {updatedAt,image,...srs}=db.cards.find(c=>c.id==='image-card');return srs;});
+ const snapshot=p=>p.evaluate(()=>{const {updatedAt,image,audio,...srs}=db.cards.find(c=>c.id==='image-card');return srs;});
  async function edit(p){
   await p.locator('.topnav [data-screen="cards"]').click();
   await p.locator('.cardrow:has([data-id="image-card"]) button').click();
  }
  async function imageReady(p,id){await p.waitForFunction(id=>document.querySelector('#'+id+' img')?.naturalWidth>0,id);}
+ const audioUrl='https://media.example.test/scene.mp3';
+ const wav=Buffer.alloc(44+16000);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(16000,40);
+ async function checkAudio(p,id){
+  const locator=p.locator('#'+id+' audio');assert.equal(await locator.isVisible(),true);assert.equal(await locator.getAttribute('src'),audioUrl);
+  await locator.evaluate(a=>a.play());await p.waitForFunction(id=>!document.querySelector('#'+id+' audio').paused,id);
+ }
  fs.mkdirSync('test-results',{recursive:true});
  try{
   for(const width of [320,390,768]){
@@ -27,6 +33,7 @@ async function main(){
    await context.route('**/*',route=>{
     if(route.request().url().startsWith(origin))return route.continue();
     if(route.request().url()==='https://images.example.test/card.jpg')return route.fulfill({status:200,contentType:'image/png',body:png});
+    if(route.request().url()===audioUrl)return route.fulfill({status:200,contentType:'audio/wav',body:wav});
     return route.abort();
    });
    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -36,6 +43,10 @@ async function main(){
    const base64=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=1280;c.height=720;const x=c.getContext('2d');x.fillStyle='#da8b42';x.fillRect(0,0,c.width,c.height);x.fillStyle='#284f77';x.fillRect(200,100,600,400);return c.toDataURL('image/png').split(',')[1];});
    png=Buffer.from(base64,'base64');
    await edit(page);
+   await page.locator('#cardAudioUrl').fill('javascript:alert(1)');await page.locator('#saveCard').click();
+   assert.match(await page.locator('#cardAudioStatus').innerText(),/gültigen HTTPS/);assert.equal(await page.evaluate(()=>db.cards[0].audio),undefined);
+   await page.locator('#cardAudioUrl').fill(audioUrl);await page.locator('#cardAudioUrl').blur();
+   await checkAudio(page,'previewCardAudio');
    await page.locator('#cardImageFile').setInputFiles({name:'scene.png',mimeType:'image/png',buffer:png});
    await imageReady(page,'previewCardImage');
    const dimensions=await page.locator('#previewCardImage img').evaluate(img=>({width:img.naturalWidth,height:img.naturalHeight,src:img.src}));
@@ -52,25 +63,35 @@ async function main(){
    assert.deepEqual(await snapshot(page),before);
    await page.reload();
    assert.equal(await page.evaluate(()=>db.cards[0].image),stored);
+   assert.equal(await page.evaluate(()=>db.cards[0].audio),audioUrl);
    await page.locator('[data-screen="trainingMenu"]').click();
    await page.locator('#trainAllBtn').click();
    await imageReady(page,'reviewCardImage');
    assert.equal(await page.locator('#reviewCardImage').isVisible(),true,'image is visible before the training answer');
+   await checkAudio(page,'reviewCardAudio');
    await page.locator('#showAnswer').click();await imageReady(page,'reviewCardImage');
    await page.screenshot({path:'test-results/card-image-training-'+width+'.png',fullPage:true});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    await page.locator('#leaveReview').click();
+   assert.equal(await page.locator('#reviewCardAudio audio').evaluate(a=>a.paused),true,'leaving stops audio');
    await page.locator('[data-screen="reviewMenu"]').click();await page.locator('#startReview').click();
    await imageReady(page,'reviewCardImage');assert.equal(await page.locator('#reviewCardImage').isVisible(),true,'image is visible before the SRS answer');
+   await checkAudio(page,'reviewCardAudio');
    await page.locator('#showAnswer').click();await imageReady(page,'reviewCardImage');
    await page.locator('#leaveReview').click();
    await page.locator('[data-screen="adventureMenu"]').click();await page.locator('#adventureDirection').selectOption('jp-de');await page.locator('#startAdventure').click();
    await imageReady(page,'advCardImage');
    assert.equal(await page.locator('#advCardImage').isVisible(),true,'image is visible before the adventure answer');
+   await checkAudio(page,'advCardAudio');
    await page.locator('#advInput').fill('Katze');await page.locator('#advSubmit').click();await imageReady(page,'advCardImage');
    await page.screenshot({path:'test-results/card-image-adventure-'+width+'.png',fullPage:true});
    page.once('dialog',d=>d.accept());await page.locator('#leaveAdventure').click();
    assert.deepEqual(await snapshot(page),before,'viewing pictures and free adventure preserve SRS');
+   await edit(page);await page.locator('#removeCardAudio').click();await page.locator('#cancelEditor').click();
+   assert.equal(await page.evaluate(()=>db.cards[0].audio),audioUrl,'cancel preserves audio');
+   await edit(page);await page.locator('#removeCardAudio').click();await page.locator('#saveCard').click();
+   assert.equal(await page.evaluate(()=>db.cards[0].audio),'');
+   await edit(page);await page.locator('#cardAudioUrl').fill(audioUrl);await page.locator('#saveCard').click();
    await edit(page);await page.locator('#cardImageUrl').fill('https://images.example.test/card.jpg');
    await page.locator('#saveCard').click();
    assert.equal(await page.evaluate(()=>db.cards[0].image),'https://images.example.test/card.jpg');
@@ -87,11 +108,14 @@ async function main(){
    await imageReady(page,'previewCardImage');
    await page.locator('#saveNext').click();
    assert.equal(await page.locator('#previewCardImage').isVisible(),false,'next card starts without previous picture');
+   assert.equal(await page.locator('#cardAudioUrl').inputValue(),'');assert.equal(await page.locator('#previewCardAudio').isVisible(),false);
    await page.locator('#frontInput').fill('犬');await page.locator('#readingInput').fill('いぬ');await page.locator('#backInput').fill('Hund');await page.locator('#saveCard').click();
    assert.equal(await page.evaluate(()=>db.cards[1].image),'');
+   assert.equal(await page.evaluate(()=>db.cards[1].audio),'');
    const backup=await page.evaluate(()=>JSON.stringify(db));
    await page.evaluate(()=>{applyCloudMerge(structuredClone(db));});
    assert.ok(await page.evaluate(()=>db.cards[0].image.startsWith('data:image/')));
+   assert.equal(await page.evaluate(()=>db.cards[0].audio),audioUrl);
    await edit(page);
    await page.locator('#cardImageFile').setInputFiles({name:'invalid.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg/>')});
    assert.match(await page.locator('#cardImageStatus').innerText(),/Bitte ein JPG/);
@@ -100,6 +124,7 @@ async function main(){
    const imported=new Promise(resolve=>{const handler=async d=>{if(d.type()==='confirm')await d.accept();else{await d.dismiss();page.off('dialog',handler);resolve();}};page.on('dialog',handler);});
    await page.locator('#importFile').setInputFiles({name:'pictures.json',mimeType:'application/json',buffer:Buffer.from(backup)});await imported;
    assert.ok(await page.evaluate(()=>db.cards.find(c=>c.id==='image-card').image.startsWith('data:image/')));
+   assert.equal(await page.evaluate(()=>db.cards.find(c=>c.id==='image-card').audio),audioUrl);
    assert.deepEqual(await snapshot(page),before);
    assert.deepEqual(errors,[]);
    await context.close();
@@ -108,3 +133,4 @@ async function main(){
  }finally{await browser.close();await new Promise(r=>server.close(r));}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
+

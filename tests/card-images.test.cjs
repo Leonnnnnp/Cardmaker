@@ -12,7 +12,7 @@ function source(name){
 }
 function fixture(){
  const c=vm.createContext({URL,Map,Set,Date,structuredClone,window:{}});
- for(const name of ['validCardImage','upgradeStorytellingReadings','normalizeSaveData','customSetDefinitions','mergeCustomSets','cardChangedAt','mergeSaveData'])vm.runInContext(source(name),c);
+ for(const name of ['validCardAudio','validCardImage','upgradeStorytellingReadings','normalizeSaveData','customSetDefinitions','mergeCustomSets','cardChangedAt','mergeSaveData'])vm.runInContext(source(name),c);
  return c;
 }
 test('image links support encoded ImmersionKit paths without permitting active or local protocols',()=>{
@@ -26,6 +26,20 @@ test('only small raster data images are accepted',()=>{
  for(const type of ['png','jpeg','webp'])assert.equal(c.validCardImage('data:image/'+type+';base64,AAAA'),'data:image/'+type+';base64,AAAA');
  assert.equal(c.validCardImage('data:image/png;base64,'+'A'.repeat(160*1024)),'');
  assert.equal(c.validCardImage('data:text/html;base64,AAAA'),'');
+});
+test('audio URLs accept encoded ImmersionKit MP3s and reject unsafe URLs',()=>{
+ const c=fixture();
+ const url='https://us-southeast-1.linodeobjects.com/immersionkit/media/anime/Hunter%20%C3%97%20Hunter/media/HUNTER%C3%97HUNTER_122_0.10.04.866-0.10.08.353.mp3';
+ assert.equal(c.validCardAudio(url),url);
+ for(const value of ['',null,{},'javascript:alert(1)','http://example.com/a.mp3','file:///a.mp3','data:audio/mp3;base64,AAAA','https://user:pass@example.com/a.mp3','https://example.com/'+'a'.repeat(5000)])assert.equal(c.validCardAudio(value),'');
+});
+test('audio survives normalization, backup and cloud merge, including explicit removal',()=>{
+ const c=fixture(),card={id:'audio',front:'猫',back:'Katze',due:123,reps:7,history:[{rating:'good',at:100}],audio:'https://example.com/a.mp3',updatedAt:20};
+ const backup=JSON.parse(JSON.stringify({cards:[card],meta:{}}));
+ const normalized=c.normalizeSaveData(backup);
+ assert.equal(normalized.cards[0].audio,card.audio);
+ const merged=c.mergeSaveData(normalized,{cards:[{...card,audio:'',updatedAt:30}],meta:{}});
+ assert.equal(merged.cards[0].audio,'');assert.equal(merged.cards[0].due,123);assert.deepEqual(merged.cards[0].history,card.history);
 });
 test('image addition and explicit removal survive JSON and cloud merge without changing SRS',()=>{
  const c=fixture();

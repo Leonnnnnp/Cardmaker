@@ -395,6 +395,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
      <div class="adv-prompt" id="advPrompt"></div>
      <div class="adv-reading" id="advPromptReading"></div>
      <div id="advCardImage" class="hidden"></div>
+     <div id="advCardAudio" class="hidden"></div>
      <div class="note" id="advHint" style="text-align:center;min-height:18px"></div>
      <div class="adv-input-row" id="advInputRow">
        <input id="advInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Antwort eingeben …">
@@ -432,6 +433,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
       </div>
       <div class="review-meta" id="reviewMeta"></div>
       <div id="reviewCardImage" class="hidden"></div>
+      <div id="reviewCardAudio" class="hidden"></div>
       <button class="btn primary" id="showAnswer">Antwort zeigen</button>
       <div id="answerArea" class="hidden">
         <div class="reviewback" id="reviewBack"></div>
@@ -488,6 +490,13 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
      <div class="note" id="cardImageStatus" role="status" style="margin-top:6px">Du kannst ein kopiertes Bild auch hier im Editor einfügen. Dateien werden verkleinert und mitgespeichert; Bildlinks benötigen Internet.</div>
    </fieldset>
    <fieldset style="margin:12px 0;padding:8px;border:1px solid #8b7a61;min-width:0">
+     <legend>Audio zur Karte (optional)</legend>
+     <label for="cardAudioUrl">Audio-URL</label>
+     <input type="url" id="cardAudioUrl" placeholder="https://…/audio.mp3">
+     <button class="btn small ghost" type="button" id="removeCardAudio" style="margin-top:8px">Audio entfernen</button>
+     <div class="note" id="cardAudioStatus" role="status" style="margin-top:6px">HTTPS-Link einfügen, zum Beispiel von ImmersionKit. Zum Abspielen ist Internet erforderlich.</div>
+   </fieldset>
+   <fieldset style="margin:12px 0;padding:8px;border:1px solid #8b7a61;min-width:0">
      <legend>Sets dieser Karte</legend>
      <div id="editorSetChoices" class="train-checks"></div>
      <div class="note">Mehrere Sets sind möglich. Den Lernstand gibt es pro Karte nur einmal.</div>
@@ -504,6 +513,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
       <div class="jp" id="previewFront"></div>
       <div id="previewBack" style="white-space:pre-wrap;margin-top:8px"></div>
       <div id="previewCardImage" class="hidden"></div>
+      <div id="previewCardAudio" class="hidden"></div>
    </div>
    <div class="row" style="margin-top:14px">
      <button class="btn primary" id="saveCard">Speichern</button>
@@ -1013,6 +1023,7 @@ function refreshVisibleReviewAvailability(){
  if(['home','reviewMenu'].some(id=>$(id)?.classList.contains('active')))refresh();
 }
 function showScreen(id){
+ stopCardAudio();
  if(id==='reviewMenu'||id==='home')refresh();
  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
  $(id).classList.add('active');
@@ -1042,6 +1053,38 @@ function renderFront(front,reading){
  return safe(f).replace(/\n/g,'<br>');
 }
 let draftCardImage='',editorImageBusy=false,editorImageToken=0;
+function validCardAudio(value){
+ if(typeof value!=='string'||value.trim().length>4096)return '';
+ try{const url=new URL(value.trim());return url.protocol==='https:'&&!url.username&&!url.password?url.href:'';}catch(e){return '';}
+}
+function stopCardAudio(){
+ document.querySelectorAll('audio.card-audio').forEach(audio=>audio.pause());
+}
+function renderCardAudio(container,value){
+ if(!container)return;
+ container.querySelectorAll('audio').forEach(audio=>{audio.pause();audio.removeAttribute('src');audio.load();});
+ container.replaceChildren();
+ const src=validCardAudio(value);container.classList.toggle('hidden',!src);
+ if(!src)return;
+ const audio=document.createElement('audio');audio.className='card-audio';audio.controls=true;audio.preload='none';audio.setAttribute('aria-label','Audio zur Karte');
+ audio.style.cssText='display:block;width:100%;max-width:420px;margin:10px auto';
+ audio.addEventListener('play',()=>document.querySelectorAll('audio.card-audio').forEach(other=>{if(other!==audio)other.pause();}));
+ audio.onerror=()=>{if(audio.parentNode!==container)return;const note=document.createElement('div');note.className='note';note.textContent='Audio konnte nicht geladen werden. Bitte den Link und die Internetverbindung prüfen.';container.replaceChildren(note);};
+ audio.src=src;container.appendChild(audio);
+}
+function resetEditorAudio(value=''){
+ $('cardAudioUrl').value=validCardAudio(value);
+ $('cardAudioStatus').textContent='HTTPS-Link einfügen, zum Beispiel von ImmersionKit. Zum Abspielen ist Internet erforderlich.';
+ renderCardAudio($('previewCardAudio'),value);
+}
+function applyEditorAudioUrl(){
+ const value=$('cardAudioUrl').value.trim(),src=validCardAudio(value);
+ if(value&&!src){$('cardAudioStatus').textContent='Bitte einen gültigen HTTPS-Audiolink eingeben.';return false;}
+ $('cardAudioStatus').textContent=src?'Audiolink übernommen. Zum Abspielen ist Internet erforderlich.':'Kein Audio ausgewählt.';
+ renderCardAudio($('previewCardAudio'),src);return true;
+}
+$('cardAudioUrl').onchange=applyEditorAudioUrl;
+$('removeCardAudio').onclick=()=>resetEditorAudio();
 function validCardImage(value){
  if(typeof value!=='string')return '';
  const src=value.trim();
@@ -1136,6 +1179,7 @@ function openEditor(card=null,setId=null){
  $('backInput').value=card?.back||'';
  $('exampleInput').value=card?.example||'';
  resetEditorImage(card?.image);
+ resetEditorAudio(card?.audio);
  const selected=$('cardSetFilter')?.value;
  renderEditorSetChoices(card,setId||(customSetDefinitions().some(s=>s.id===selected)?selected:USER_SET_ID));
  $('readingStatus').textContent='Lokale Analyse bereit: Grundformen + häufige Beugungen, komplett offline.';
@@ -1143,7 +1187,7 @@ function openEditor(card=null,setId=null){
  $('editorModal').classList.add('show');
  $('frontInput').focus();
 }
-function closeEditor(){ $('editorModal').classList.remove('show'); editId=null;resetEditorImage(); }
+function closeEditor(){ $('editorModal').classList.remove('show'); editId=null;resetEditorImage();resetEditorAudio(); }
 $('addFab').onclick=()=>openEditor();
 $('cancelEditor').onclick=closeEditor;
 
@@ -2030,7 +2074,7 @@ $('removeDictBtn').onclick=async()=>{
 loadInstalledDictionary();
 
 function commitCard(andNext=false){
- if(editorImageBusy||!applyEditorImageUrl())return;
+ if(editorImageBusy||!applyEditorImageUrl()||!applyEditorAudioUrl())return;
  const front=$('frontInput').value.trim(), back=$('backInput').value.trim();
  if(!front||!back){ alert('Vorder- und Rückseite dürfen nicht leer sein.'); return; }
  const old=db.cards.find(c=>c.id===editId);
@@ -2040,17 +2084,18 @@ function commitCard(andNext=false){
  if(old){
    old.front=front; old.reading=$('readingInput').value.trim(); old.back=back; old.example=$('exampleInput').value.trim(); old.updatedAt=now();old.setIds=setIds;
    if(draftCardImage||'image' in old)old.image=draftCardImage;
+   if($('cardAudioUrl').value.trim()||'audio' in old)old.audio=validCardAudio($('cardAudioUrl').value);
  }else{
    db.cards.push({id:uid(),front,reading:$('readingInput').value.trim(),back,example:$('exampleInput').value.trim(),
       createdAt:now(),updatedAt:now(),due:now(),reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,
-      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds,image:draftCardImage});
+      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds,image:draftCardImage,audio:validCardAudio($('cardAudioUrl').value)});
  }
  try{save();}catch(error){
    db=previous;rebindActiveCardRefs();refresh();
    $('cardImageStatus').textContent=error.name==='QuotaExceededError'?'Nicht gespeichert: Der lokale Speicher ist voll. Bitte ein kleineres Bild oder einen Bildlink verwenden.':'Die Karte konnte nicht gespeichert werden. Bitte erneut versuchen.';
    return;
  }
- if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';resetEditorImage();updatePreview();$('germanLookupInput').focus();}
+ if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';resetEditorImage();resetEditorAudio();updatePreview();$('germanLookupInput').focus();}
  else closeEditor();
 }
 $('saveCard').onclick=()=>commitCard(false);
@@ -2483,6 +2528,7 @@ function advNextQuestion(){
  s.current=s.deck[s.deckPos++];s.current=db.cards.find(c=>c.id===s.current.id)||s.current;
  s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;s.hintUsed=false;
  renderCardImage($('advCardImage'),s.current.image);
+ renderCardAudio($('advCardAudio'),s.current.audio);
  $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advFeedback').style.fontSize='';$('advPrompt').style.fontSize='';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
  if(s.currentDirection==='jp-de'){
    $('advDirectionTag').textContent='日本語 → DEUTSCH';
@@ -2637,6 +2683,7 @@ function chooseReviewDirection(card){
 }
 function renderReviewCard(card){
  renderCardImage($('reviewCardImage'),card.image);
+ renderCardAudio($('reviewCardAudio'),card.audio);
  currentDirection=chooseReviewDirection(card);
  const dirLabel=currentDirection==='jp-de'?'日本語 → Deutsch':'Deutsch → 日本語';
  const readingRow=$('reviewReadingRow'), readingBtn=$('showReadingBtn');
@@ -2935,6 +2982,7 @@ window.addEventListener('focus',refreshVisibleReviewAvailability);
 </script>
 </body>
 </html>
+
 
 
 
