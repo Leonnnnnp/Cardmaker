@@ -43,6 +43,8 @@ textarea{resize:vertical;min-height:72px;white-space:pre-wrap}
 .fab{position:fixed;right:18px;bottom:18px;border-radius:999px;width:58px;height:58px;font-size:30px;background:var(--amber);color:#2a1905;border:3px solid var(--frame);box-shadow:0 5px 0 var(--frame);z-index:10}
 .modal{position:fixed;inset:0;background:#080610d9;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
 .modal.show{display:flex}.modal-card{max-width:560px;width:100%;max-height:92vh;overflow:auto}
+.card-image{display:block;width:auto;max-width:100%;max-height:210px;object-fit:contain;margin:10px auto;border-radius:6px}
+#advCardImage .card-image{max-height:140px}
 .preview{margin-top:12px;background:#fbf2df;padding:12px;border:1px dashed #9a8050;border-radius:6px}
 .preview .jp{font-size:25px;white-space:pre-wrap}.preview ruby rt{font-size:12px;color:#6f5835}
 .note{font-size:12px;color:var(--muted)}
@@ -398,6 +400,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
        <button class="btn primary" id="advSubmit">OK</button>
      </div>
      <div class="adv-feedback" id="advFeedback"></div>
+     <div id="advCardImage" class="hidden"></div>
      <div class="row hidden" id="advNextRow" style="justify-content:center;margin-top:8px"><button class="btn primary" id="advNext">Weiter</button></div>
    </div>
  </section>
@@ -431,6 +434,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
       <button class="btn primary" id="showAnswer">Antwort zeigen</button>
       <div id="answerArea" class="hidden">
         <div class="reviewback" id="reviewBack"></div>
+        <div id="reviewCardImage" class="hidden"></div>
         <div class="example hidden" id="reviewExample"></div>
         <div class="rating" style="margin-top:14px">
           <button class="btn again" data-rate="again">Nochmal</button>
@@ -475,6 +479,15 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
    <label>Beispielsatz (optional)</label>
    <textarea id="exampleInput" placeholder="京都を訪れました。&#10;Ich habe Kyoto besucht."></textarea>
    <fieldset style="margin:12px 0;padding:8px;border:1px solid #8b7a61;min-width:0">
+     <legend>Bild zur Karte (optional)</legend>
+     <label for="cardImageFile">Bilddatei hochladen</label>
+     <input type="file" id="cardImageFile" accept="image/jpeg,image/png,image/webp,image/gif,image/avif">
+     <label for="cardImageUrl" style="margin-top:8px">Oder Bildlink einfügen</label>
+     <input type="url" id="cardImageUrl" placeholder="https://…/bild.jpg">
+     <button class="btn small ghost" type="button" id="removeCardImage" style="margin-top:8px">Bild entfernen</button>
+     <div class="note" id="cardImageStatus" role="status" style="margin-top:6px">Du kannst ein kopiertes Bild auch hier im Editor einfügen. Dateien werden verkleinert und mitgespeichert; Bildlinks benötigen Internet.</div>
+   </fieldset>
+   <fieldset style="margin:12px 0;padding:8px;border:1px solid #8b7a61;min-width:0">
      <legend>Sets dieser Karte</legend>
      <div id="editorSetChoices" class="train-checks"></div>
      <div class="note">Mehrere Sets sind möglich. Den Lernstand gibt es pro Karte nur einmal.</div>
@@ -490,6 +503,7 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
       <div class="note">Vorschau</div>
       <div class="jp" id="previewFront"></div>
       <div id="previewBack" style="white-space:pre-wrap;margin-top:8px"></div>
+      <div id="previewCardImage" class="hidden"></div>
    </div>
    <div class="row" style="margin-top:14px">
      <button class="btn primary" id="saveCard">Speichern</button>
@@ -1027,6 +1041,74 @@ function renderFront(front,reading){
  }
  return safe(f).replace(/\n/g,'<br>');
 }
+let draftCardImage='',editorImageBusy=false,editorImageToken=0;
+function validCardImage(value){
+ if(typeof value!=='string')return '';
+ const src=value.trim();
+ if(src.startsWith('data:'))return src.length<=160*1024&&/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(src)?src:'';
+ if(src.length>4096)return '';
+ try{const url=new URL(src);return url.protocol==='https:'&&!url.username&&!url.password?url.href:'';}catch(e){return '';}
+}
+function renderCardImage(container,value){
+ if(!container)return;
+ container.replaceChildren();
+ const src=validCardImage(value);container.classList.toggle('hidden',!src);
+ if(!src)return;
+ const image=document.createElement('img');image.className='card-image';image.alt='Bild zur Karte';image.referrerPolicy='no-referrer';image.decoding='async';
+ image.onerror=()=>{if(image.parentNode!==container)return;image.remove();const note=document.createElement('div');note.className='note';note.textContent='Bild konnte nicht geladen werden.';container.appendChild(note);};
+ image.src=src;container.appendChild(image);
+}
+function setEditorImageBusy(value){
+ editorImageBusy=value;$('saveCard').disabled=value;$('saveNext').disabled=value;
+}
+function resetEditorImage(value=''){
+ editorImageToken++;setEditorImageBusy(false);draftCardImage=validCardImage(value);
+ $('cardImageFile').value='';$('cardImageUrl').value=draftCardImage.startsWith('https:')?draftCardImage:'';
+ $('cardImageStatus').textContent=draftCardImage?'Bild übernommen. Zum Ersetzen eine neue Datei oder einen Bildlink auswählen.':'Datei hochladen, Bildlink eingeben oder kopiertes Bild im Editor einfügen.';
+ renderCardImage($('previewCardImage'),draftCardImage);
+}
+function applyEditorImageUrl(){
+ const value=$('cardImageUrl').value.trim();
+ if(!value){if(draftCardImage.startsWith('https:'))draftCardImage='';renderCardImage($('previewCardImage'),draftCardImage);return true;}
+ const src=validCardImage(value);
+ if(!src || !src.startsWith('https:')){$('cardImageStatus').textContent='Bitte einen gültigen HTTPS-Bildlink eingeben.';return false;}
+ editorImageToken++;setEditorImageBusy(false);draftCardImage=src;renderCardImage($('previewCardImage'),src);
+ $('cardImageStatus').textContent='Bildlink übernommen. Dieses Bild benötigt eine Internetverbindung.';return true;
+}
+async function compressCardImage(file){
+ if(!['image/jpeg','image/png','image/webp','image/gif','image/avif'].includes(file.type))throw new Error('Bitte ein JPG-, PNG-, WebP-, GIF- oder AVIF-Bild auswählen.');
+ if(file.size>8*1024*1024)throw new Error('Die Bilddatei darf höchstens 8 MB groß sein.');
+ const url=URL.createObjectURL(file);
+ try{
+   const image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('Dieses Bild konnte nicht gelesen werden.'));img.src=url;});
+   const scale=Math.min(1,640/image.naturalWidth,480/image.naturalHeight),canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+   const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0,canvas.width,canvas.height);
+   for(const quality of [.82,.65,.5]){
+     let data=canvas.toDataURL('image/webp',quality);
+     if(!data.startsWith('data:image/webp'))data=canvas.toDataURL('image/jpeg',quality);
+     if(validCardImage(data))return data;
+   }
+   throw new Error('Das Bild ist nach dem Verkleinern noch zu groß. Bitte einen kleineren Ausschnitt verwenden.');
+ }finally{URL.revokeObjectURL(url);}
+}
+async function loadEditorImage(file){
+ if(!file)return;
+ const token=++editorImageToken;setEditorImageBusy(true);$('cardImageStatus').textContent='Bild wird verkleinert …';
+ try{
+   const src=await compressCardImage(file);if(token!==editorImageToken)return;
+   draftCardImage=src;$('cardImageUrl').value='';renderCardImage($('previewCardImage'),src);
+   $('cardImageStatus').textContent='Bild übernommen und verkleinert. Es wird mit der Karte gespeichert.';
+ }catch(error){if(token===editorImageToken)$('cardImageStatus').textContent=error.message;}
+ finally{if(token===editorImageToken)setEditorImageBusy(false);}
+}
+$('cardImageFile').onchange=e=>loadEditorImage(e.target.files?.[0]);
+$('cardImageUrl').onchange=applyEditorImageUrl;
+$('removeCardImage').onclick=()=>resetEditorImage();
+$('editorModal').addEventListener('paste',e=>{
+ const file=[...(e.clipboardData?.files||[])].find(f=>f.type.startsWith('image/'));
+ if(file){e.preventDefault();loadEditorImage(file);}
+});
 function updatePreview(){
  $('previewFront').innerHTML=renderFront($('frontInput').value,$('readingInput').value);
  $('previewBack').innerHTML=safe($('backInput').value).replace(/\n/g,'<br>');
@@ -1053,6 +1135,7 @@ function openEditor(card=null,setId=null){
  $('readingInput').value=card?.reading||'';
  $('backInput').value=card?.back||'';
  $('exampleInput').value=card?.example||'';
+ resetEditorImage(card?.image);
  const selected=$('cardSetFilter')?.value;
  renderEditorSetChoices(card,setId||(customSetDefinitions().some(s=>s.id===selected)?selected:USER_SET_ID));
  $('readingStatus').textContent='Lokale Analyse bereit: Grundformen + häufige Beugungen, komplett offline.';
@@ -1060,7 +1143,7 @@ function openEditor(card=null,setId=null){
  $('editorModal').classList.add('show');
  setTimeout(()=>$('frontInput').focus(),50);
 }
-function closeEditor(){ $('editorModal').classList.remove('show'); editId=null; }
+function closeEditor(){ $('editorModal').classList.remove('show'); editId=null;resetEditorImage(); }
 $('addFab').onclick=()=>openEditor();
 $('cancelEditor').onclick=closeEditor;
 
@@ -1947,20 +2030,27 @@ $('removeDictBtn').onclick=async()=>{
 loadInstalledDictionary();
 
 function commitCard(andNext=false){
+ if(editorImageBusy||!applyEditorImageUrl())return;
  const front=$('frontInput').value.trim(), back=$('backInput').value.trim();
  if(!front||!back){ alert('Vorder- und Rückseite dürfen nicht leer sein.'); return; }
  const old=db.cards.find(c=>c.id===editId);
  const setIds=[...document.querySelectorAll('.editor-set-choice:checked')].map(el=>el.value);
  if(!setIds.length){alert('Bitte mindestens ein Set auswählen.');return;}
+ const previous=structuredClone(db);
  if(old){
    old.front=front; old.reading=$('readingInput').value.trim(); old.back=back; old.example=$('exampleInput').value.trim(); old.updatedAt=now();old.setIds=setIds;
+   if(draftCardImage||'image' in old)old.image=draftCardImage;
  }else{
    db.cards.push({id:uid(),front,reading:$('readingInput').value.trim(),back,example:$('exampleInput').value.trim(),
       createdAt:now(),updatedAt:now(),due:now(),reps:0,intervalDays:0,ease:2.5,lapses:0,lastReview:null,
-      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds});
+      state:'new',learningStep:0,stability:0.3,difficulty:5,history:[],source:'user',setIds,image:draftCardImage});
  }
- save();
- if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';updatePreview();$('germanLookupInput').focus();}
+ try{save();}catch(error){
+   db=previous;rebindActiveCardRefs();refresh();
+   $('cardImageStatus').textContent=error.name==='QuotaExceededError'?'Nicht gespeichert: Der lokale Speicher ist voll. Bitte ein kleineres Bild oder einen Bildlink verwenden.':'Die Karte konnte nicht gespeichert werden. Bitte erneut versuchen.';
+   return;
+ }
+ if(andNext){ editId=null; $('germanLookupInput').value='';$('frontInput').value='';$('readingInput').value='';$('backInput').value='';$('exampleInput').value='';resetEditorImage();updatePreview();$('germanLookupInput').focus();}
  else closeEditor();
 }
 $('saveCard').onclick=()=>commitCard(false);
@@ -2392,6 +2482,7 @@ function advNextQuestion(){
  }
  s.current=s.deck[s.deckPos++];s.current=db.cards.find(c=>c.id===s.current.id)||s.current;
  s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;s.hintUsed=false;
+ renderCardImage($('advCardImage'),'');
  $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advFeedback').style.fontSize='';$('advPrompt').style.fontSize='';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
  if(s.currentDirection==='jp-de'){
    $('advDirectionTag').textContent='日本語 → DEUTSCH';
@@ -2447,6 +2538,7 @@ function advSubmitAnswer(){
  const s=advState;if(!s||s.awaiting||!s.current)return;
  const val=$('advInput').value.trim();if(!val)return;
  s.awaiting=true;const correct=advCorrectAnswer(s.current,val),elapsed=Date.now()-s.questionStart,fast=correct&&elapsed<=s.questionDuration;
+ renderCardImage($('advCardImage'),s.current.image);
  const st=adventureStat(s.current);st.seen++;
  if(correct){st.correct++;if(fast)st.fast++;}else st.wrong++;
  if(s.hourglassTurns>0)s.hourglassTurns--;
@@ -2544,6 +2636,7 @@ function chooseReviewDirection(card){
  return 'de-jp';
 }
 function renderReviewCard(card){
+ renderCardImage($('reviewCardImage'),card.image);
  currentDirection=chooseReviewDirection(card);
  const dirLabel=currentDirection==='jp-de'?'日本語 → Deutsch':'Deutsch → 日本語';
  const readingRow=$('reviewReadingRow'), readingBtn=$('showReadingBtn');
@@ -2842,6 +2935,7 @@ window.addEventListener('focus',refreshVisibleReviewAvailability);
 </script>
 </body>
 </html>
+
 
 
 

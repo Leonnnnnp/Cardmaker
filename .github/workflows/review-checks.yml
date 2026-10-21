@@ -22,6 +22,8 @@ jobs:
           node tests/browser-review-queue.cjs
           node tests/browser-custom-sets.cjs
         timeout-minutes: 5
+      - run: node tests/browser-card-images.cjs
+        timeout-minutes: 3
       - uses: actions/upload-artifact@v4
         if: always()
         with:
