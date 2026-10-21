@@ -61,7 +61,7 @@ async function main(){
    assert.equal(await page.evaluate(id=>cardsForSet(id).length,id),2);
    await page.locator('#frontInput').fill('駅');await page.locator('#readingInput').fill('えき');await page.locator('#backInput').fill('Bahnhof');
    await page.locator('#saveCard').click();
-   assert.equal(await page.evaluate(id=>cardsForSet(id).length,id),3);
+   assert.equal(await page.evaluate(id=>cardsForSet(id).length,id),3,JSON.stringify(await page.evaluate(()=>({cards:db.cards.map(c=>({id:c.id,front:c.front,setIds:c.setIds})),editId,front:$('frontInput').value,back:$('backInput').value,modal:$('editorModal').className,status:$('cardImageStatus')?.textContent,busy:typeof editorImageBusy==='undefined'?null:editorImageBusy})))+' errors='+JSON.stringify(errors));
    assert.deepEqual(await srs(page),before);
    // Check durable local reload and a simulated second-device merge.
    await page.reload();
