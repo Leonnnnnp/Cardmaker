@@ -394,13 +394,13 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
      <div class="adv-timer"><div class="adv-timer-fill" id="advTimerFill"></div></div>
      <div class="adv-prompt" id="advPrompt"></div>
      <div class="adv-reading" id="advPromptReading"></div>
+     <div id="advCardImage" class="hidden"></div>
      <div class="note" id="advHint" style="text-align:center;min-height:18px"></div>
      <div class="adv-input-row" id="advInputRow">
        <input id="advInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Antwort eingeben …">
        <button class="btn primary" id="advSubmit">OK</button>
      </div>
      <div class="adv-feedback" id="advFeedback"></div>
-     <div id="advCardImage" class="hidden"></div>
      <div class="row hidden" id="advNextRow" style="justify-content:center;margin-top:8px"><button class="btn primary" id="advNext">Weiter</button></div>
    </div>
  </section>
@@ -431,10 +431,10 @@ select.set-select{max-width:100%;min-width:0}.train-check{max-width:100%;overflo
         <button class="btn small ghost" id="showReadingBtn">Lesung</button>
       </div>
       <div class="review-meta" id="reviewMeta"></div>
+      <div id="reviewCardImage" class="hidden"></div>
       <button class="btn primary" id="showAnswer">Antwort zeigen</button>
       <div id="answerArea" class="hidden">
         <div class="reviewback" id="reviewBack"></div>
-        <div id="reviewCardImage" class="hidden"></div>
         <div class="example hidden" id="reviewExample"></div>
         <div class="rating" style="margin-top:14px">
           <button class="btn again" data-rate="again">Nochmal</button>
@@ -2482,7 +2482,7 @@ function advNextQuestion(){
  }
  s.current=s.deck[s.deckPos++];s.current=db.cards.find(c=>c.id===s.current.id)||s.current;
  s.currentDirection=adventureDirectionFor(s.current);s.awaiting=false;s.hintUsed=false;
- renderCardImage($('advCardImage'),'');
+ renderCardImage($('advCardImage'),s.current.image);
  $('advFeedback').textContent='';$('advFeedback').className='adv-feedback';$('advFeedback').style.fontSize='';$('advPrompt').style.fontSize='';$('advNextRow').classList.add('hidden');$('advInputRow').classList.remove('hidden');$('advHint').textContent='';
  if(s.currentDirection==='jp-de'){
    $('advDirectionTag').textContent='日本語 → DEUTSCH';
