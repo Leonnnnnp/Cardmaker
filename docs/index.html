@@ -1141,7 +1141,7 @@ function openEditor(card=null,setId=null){
  $('readingStatus').textContent='Lokale Analyse bereit: Grundformen + häufige Beugungen, komplett offline.';
  updatePreview(); renderDuplicateWarning(); $('lookupResults').classList.add('hidden');
  $('editorModal').classList.add('show');
- setTimeout(()=>$('frontInput').focus(),50);
+ $('frontInput').focus();
 }
 function closeEditor(){ $('editorModal').classList.remove('show'); editId=null;resetEditorImage(); }
 $('addFab').onclick=()=>openEditor();
